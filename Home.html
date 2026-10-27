@@ -496,7 +496,7 @@
         }
 
         // ------------------ ระบบ Leaderboard ------------------
-        const CSV_URL = 'https://script.google.com/macros/s/AKfycbyoDP7VBLzRps63XnxM19KNUMM4LOduLKe2n1wNmGeXffkWFGYifJLCOiO0eAvvw_Foew/exec';
+        const CSV_URL = 'https://script.google.com/macros/s/AKfycbxd509g3LmYxo8Uys7RTXsyAPSANup-9ITzjy-xZLx2feNYWiyS4wVVTNOHasseWUC_/exec';
 
         async function fetchLeaderboard() {
             try {
@@ -507,16 +507,13 @@
                 const rows = data.split(/\r?\n/);
                 let students = [];
 
-                for(let i = 1; i < rows.length; i++) {
+                for(let i = 0; i < rows.length; i++) {
                     const cols = rows[i].split(',');
-                    if(cols.length >= 4 && cols[0] && cols[0].trim() !== '') {
-                        const name = cols[1] ? cols[1].replace(/^"|"$/g, '').trim() : 'Unknown';
+                    if(cols.length >= 2 && cols[0] && cols[0].trim() !== '') {
+                        const name = cols[1] && cols[1].trim() !== '' ? cols[1].replace(/^"|"$/g, '').trim() : cols[0].trim();
                         const xp = parseInt(cols[2]) || 0;
-                        const level = parseInt(cols[3]) || 1;
-
-                        if(xp > 0) {
-                            students.push({ name, xp, level });
-                        }
+                        const level = Math.floor(xp / 40) + 1;
+                        students.push({ name, xp, level });
                     }
                 }
 

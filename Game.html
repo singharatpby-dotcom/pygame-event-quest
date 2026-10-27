@@ -345,7 +345,7 @@
     <!-- Scripts -->
     <script>
         const BACKEND_BASE = window.location.protocol.startsWith("http") ? "" : "http://127.0.0.1:8000";
-        const APP_SCRIPT_URL = "https://script.google.com/macros/s/AKfycbyoDP7VBLzRps63XnxM19KNUMM4LOduLKe2n1wNmGeXffkWFGYifJLCOiO0eAvvw_Foew/exec";
+        const APP_SCRIPT_URL = "https://script.google.com/macros/s/AKfycbxd509g3LmYxo8Uys7RTXsyAPSANup-9ITzjy-xZLx2feNYWiyS4wVVTNOHasseWUC_/exec";
 
         const currentStudentId = localStorage.getItem('studentId') || 'guest';
         const xpKey = `xp_${currentStudentId}`;
@@ -954,8 +954,8 @@ sys.modules['pygame'] = MockPygame()
 
         function saveProgressToGoogleSheet(currentXP, currentLevel) {
             if (!currentStudentId || currentStudentId === 'guest' || !APP_SCRIPT_URL) return;
-            const missionsStatus = completedMissions.map((isDone, i) => isDone ? `ผ่านบทที่ ${i + 1}` : '').filter(Boolean).join(', ');
-            const url = `${APP_SCRIPT_URL}?studentId=${currentStudentId}&xp=${currentXP}&level=${currentLevel}&missions=${encodeURIComponent(missionsStatus)}`;
+            const lessonNumber = currentMission + 1;
+            const url = `${APP_SCRIPT_URL}?studentId=${encodeURIComponent(currentStudentId)}&xp=${currentXP}&lesson=${lessonNumber}`;
             fetch(url, { method: 'GET', mode: 'no-cors' }).catch(err => console.error("Save Sheet Error:", err));
         }
 

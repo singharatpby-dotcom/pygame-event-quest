@@ -29,7 +29,7 @@
             
             <form onsubmit="handleLogin(event)" class="space-y-6">
                 <div class="text-left">
-                    <label class="block text-xs font-bold text-slate-400 uppercase tracking-wider mb-2 ml-1">รหัสนักศึกษา (Student ID)</label>
+                    <label class="block text-xs font-bold text-slate-400 uppercase tracking-wider mb-2 ml-1">รหัสนักศึกษา (STUDENT ID)</label>
                     <input type="text" id="username" required placeholder="กรอกรหัสนักศึกษา..." class="input-field w-full rounded-xl py-3 px-4 font-mono text-sm placeholder-slate-600">
                 </div>
 
@@ -45,7 +45,7 @@
     </main>
 
     <script>
-        const GOOGLE_SHEET_CSV_URL = 'https://script.google.com/macros/s/AKfycbyoDP7VBLzRps63XnxM19KNUMM4LOduLKe2n1wNmGeXffkWFGYifJLCOiO0eAvvw_Foew/exec';
+        const GOOGLE_SHEET_CSV_URL = 'https://script.google.com/macros/s/AKfycbxd509g3LmYxo8Uys7RTXsyAPSANup-9ITzjy-xZLx2feNYWiyS4wVVTNOHasseWUC_/exec';
 
         async function handleLogin(e) {
             e.preventDefault();
@@ -59,38 +59,39 @@
             errorMsg.classList.add('hidden');
 
             try {
-                const response = await fetch(GOOGLE_SHEET_CSV_URL);
+                const response = await fetch(GOOGLE_SHEET_CSV_URL + '?t=' + new Date().getTime());
                 if (!response.ok) throw new Error("Net Error");
                 const data = await response.text();
                 
-                const rows = data.split(/\r?\n/);
-                let isFound = false, studentName = "";
+                const rows = data.split(/\r?\n/).filter(r => r.trim() !== '');
+                let isFound = false, studentName = "", actualStudentId = inputId;
                 
-                // ล้างอักขระพิเศษออกจากรหัสที่พิมพ์มา
-                const cleanInputId = inputId.replace(/[^0-9a-zA-Z]/g, '');
+                // ล้างอักขระพิเศษสำหรับเปรียบเทียบ
+                const cleanInputId = inputId.replace(/[^0-9a-zA-Z]/g, '').toLowerCase();
 
-                for(let i = 1; i < rows.length; i++) {
+                for(let i = 0; i < rows.length; i++) {
                     const columns = rows[i].split(',');
                     if(columns.length >= 2) {
-                        // ล้างอักขระพิเศษออกจากรหัสใน Sheet
-                        const sheetId = columns[0].replace(/[^0-9a-zA-Z]/g, '');
+                        const rawSheetId = columns[0].trim();
+                        const cleanSheetId = rawSheetId.replace(/[^0-9a-zA-Z]/g, '').toLowerCase();
                         
-                        if(sheetId === cleanInputId) {
+                        if(cleanSheetId === cleanInputId || rawSheetId.toLowerCase() === inputId.toLowerCase()) {
                             isFound = true;
-                            // ลบเครื่องหมายคำพูด (Quotes) ออกจากชื่อ
-                            studentName = columns[1].replace(/^"|"$/g, '').trim();
+                            actualStudentId = rawSheetId;
+                            // ชื่อจากคอลัมน์ 1 หรือใช้ studentId ถ้าชื่อว่าง
+                            studentName = (columns[1] || "").replace(/^"|"$/g, '').trim() || actualStudentId;
                             break;
                         }
                     }
                 }
 
                 if (isFound) {
-                    localStorage.setItem('studentId', cleanInputId);
+                    localStorage.setItem('studentId', actualStudentId);
                     localStorage.setItem('studentName', studentName);
                     
                     btn.innerHTML = `ยินดีต้อนรับ ${studentName} 🚀`;
                     btn.classList.replace('bg-amber-600', 'bg-emerald-600');
-                    setTimeout(() => window.location.href = 'Game.html', 1200);
+                    setTimeout(() => window.location.href = 'Game.html', 1000);
                 } else {
                     throw new Error("Not found");
                 }
