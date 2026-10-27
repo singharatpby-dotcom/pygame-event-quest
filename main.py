@@ -263,6 +263,13 @@ async def grade_code_endpoint(request: GradeRequest):
     if not lesson:
         raise HTTPException(status_code=400, detail="ไม่พบบทเรียนที่ระบุ (รองรับบทที่ 1-6)")
 
+    # 📂 อ่านโค้ดเฉลยจากโฟลเดอร์ ans/ โดยตรงตามที่ระบุ
+    ans_file = BASE_DIR / "ans" / f"answer_lesson_{lesson_num}.py"
+    if ans_file.exists():
+        answer_key_code = ans_file.read_text(encoding="utf-8").strip()
+    else:
+        answer_key_code = lesson["answer_key"]
+
     system_prompt = """คุณคือระบบตรวจประเมินผลโค้ดอัตโนมัติ (Automated Code Grader) วิชาการสร้างเกมคอมพิวเตอร์ เรื่อง Pygame Event Handling สำหรับนักเรียน ปวช.2
 
 [เกณฑ์การตรวจประเมิน (Evaluation Rubric)]:
@@ -287,7 +294,7 @@ async def grade_code_endpoint(request: GradeRequest):
 
 [โค้ดเฉลยและเกณฑ์ที่ต้องมี (Answer Key)]:
 ```python
-{lesson['answer_key']}
+{answer_key_code}
 ```
 
 [โค้ดที่นักเรียนส่งมา (Student Code)]:
@@ -379,11 +386,24 @@ async def serve_login_page():
 
 @app.get("/api/health")
 def health_check():
+    spreadsheet_id = os.getenv("SPREADSHEET_ID", "1eZ1wAR5dPV_rmwVg8E-zHIjoV-ZEc0ASjUvcrawJxlo")
     return {
         "status": "healthy",
         "service": "Pygame Event Quest",
+        "spreadsheet_id": spreadsheet_id,
+        "ans_folder": "app/ans",
         "ready": True
     }
+
+@app.get("/api/answers/{lesson_num}")
+def get_lesson_answer(lesson_num: int):
+    ans_file = BASE_DIR / "ans" / f"answer_lesson_{lesson_num}.py"
+    if ans_file.exists():
+        return {
+            "lesson": lesson_num,
+            "answer_code": ans_file.read_text(encoding="utf-8")
+        }
+    raise HTTPException(status_code=404, detail="ไม่พบไฟล์เฉลยบทนี้")
 
 if __name__ == "__main__":
     import uvicorn
