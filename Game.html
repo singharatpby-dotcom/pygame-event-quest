@@ -1,0 +1,1051 @@
+<!DOCTYPE html>
+<html lang="th" class="scroll-smooth dark">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Pygame Event Quest - ระบบภารกิจการตรวจจับเหตุการณ์</title>
+    
+    <!-- Tailwind CSS -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Prompt:wght@300;400;600;700&family=Fira+Code:wght@400;600&display=swap" rel="stylesheet">
+    <!-- Pyodide สำหรับรัน Python บนเบราว์เซอร์ -->
+    <script src="https://cdn.jsdelivr.net/pyodide/v0.25.0/full/pyodide.js"></script>
+
+    <script>
+        tailwind.config = {
+            darkMode: 'class',
+            theme: {
+                extend: {
+                    fontFamily: { sans: ['Prompt', 'sans-serif'], mono: ['Fira Code', 'monospace'] },
+                    colors: {
+                        brand: { 400: '#38bdf8', 500: '#0ea5e9', 600: '#0284c7', 900: '#0c4a6e' }
+                    }
+                }
+            }
+        }
+    </script>
+
+    <style>
+        body { background-color: #020617; font-family: 'Prompt', sans-serif; color: white; min-height: 100vh; }
+        .mesh-bg {
+            position: fixed; top: 0; left: 0; width: 100%; height: 100%; z-index: -1;
+            background: radial-gradient(circle at 0% 0%, #0c4a6e 0%, transparent 40%),
+                        radial-gradient(circle at 100% 100%, #831843 0%, transparent 40%),
+                        radial-gradient(circle at 50% 50%, #020617 0%, #020617 100%);
+        }
+        .glass-card {
+            background: rgba(15, 23, 42, 0.75);
+            backdrop-filter: blur(12px);
+            border: 1px solid rgba(255, 255, 255, 0.08);
+            box-shadow: 0 10px 30px rgba(0,0,0,0.4);
+        }
+        .code-editor {
+            font-family: 'Fira Code', monospace;
+            line-height: 1.6;
+            tab-size: 4;
+        }
+        .tab-btn.active {
+            background: #0284c7;
+            color: white;
+            border-color: #38bdf8;
+            box-shadow: 0 0 15px rgba(56, 189, 248, 0.4);
+        }
+        .success-glow {
+            box-shadow: 0 0 35px rgba(16, 185, 129, 0.5);
+            border-color: #10b981 !important;
+        }
+        /* Chat Slide Animation */
+        .chat-slide-up { animation: slideUp 0.3s cubic-bezier(0.16, 1, 0.3, 1) forwards; }
+        .chat-slide-down { animation: slideDown 0.3s cubic-bezier(0.16, 1, 0.3, 1) forwards; }
+        @keyframes slideUp { from { transform: translateY(100%); opacity: 0; } to { transform: translateY(0); opacity: 1; } }
+        @keyframes slideDown { from { transform: translateY(0); opacity: 1; } to { transform: translateY(100%); opacity: 0; } }
+    </style>
+</head>
+<body class="p-4 md:p-6 pb-24 relative">
+    <div class="mesh-bg"></div>
+
+    <!-- Header Navigation & Gamification Status -->
+    <header class="max-w-7xl mx-auto glass-card rounded-2xl p-4 md:p-5 mb-6 flex flex-wrap justify-between items-center gap-4">
+        <div class="flex items-center gap-3">
+            <a href="Home.html" class="bg-slate-800 hover:bg-slate-700 p-2.5 rounded-xl border border-slate-700 transition" title="กลับหน้าเรียนรู้">
+                ⬅️
+            </a>
+            <div>
+                <div class="flex items-center gap-2">
+                    <span class="w-2.5 h-2.5 rounded-full bg-emerald-400 animate-pulse"></span>
+                    <span class="text-xs uppercase font-bold tracking-widest text-cyan-400">Pygame Event Handling Quest</span>
+                </div>
+                <div id="student-name-display" class="font-bold text-slate-200 text-sm">
+                    ยินดีต้อนรับ Agent: <span class="text-emerald-400 font-bold">กำลังโหลด...</span>
+                </div>
+            </div>
+        </div>
+
+        <!-- Level & XP Status -->
+        <div class="flex items-center gap-6 w-full md:w-auto justify-end">
+            <div class="text-center">
+                <div class="text-[10px] text-slate-400 font-bold tracking-widest uppercase">ระดับ (Level)</div>
+                <div id="user-level" class="text-2xl font-black text-cyan-400">1</div>
+            </div>
+            <div class="w-44 md:w-56 text-right">
+                <div class="flex justify-between text-xs text-slate-300 font-bold mb-1">
+                    <span>⚡ ค่าประสบการณ์ (XP)</span>
+                    <span><span id="xp-value" class="text-cyan-400">0</span> / 120</span>
+                </div>
+                <div class="w-full bg-slate-900 rounded-full h-3 border border-slate-700 overflow-hidden">
+                    <div id="xp-bar" class="bg-gradient-to-r from-cyan-500 via-sky-400 to-emerald-400 h-full rounded-full transition-all duration-700" style="width: 0%"></div>
+                </div>
+            </div>
+            <button onclick="resetGameProgress()" class="text-xs text-slate-500 hover:text-rose-400 transition" title="รีเซ็ตความคืบหน้า">
+                🔄 รีเซ็ต
+            </button>
+        </div>
+    </header>
+
+    <!-- Main Workspace -->
+    <main class="max-w-7xl mx-auto grid grid-cols-1 lg:grid-cols-12 gap-6">
+        
+        <!-- Left: Mission & Code Area (7 cols) -->
+        <section class="lg:col-span-7 flex flex-col gap-4">
+            
+            <!-- 6 Mission Tabs -->
+            <div class="grid grid-cols-3 sm:grid-cols-6 gap-2">
+                <button onclick="loadMission(0)" id="tab-0" class="tab-btn active p-2.5 rounded-xl font-bold text-xs border border-slate-700 bg-slate-800/80 transition">บท 1: เริ่มต้น</button>
+                <button onclick="loadMission(1)" id="tab-1" class="tab-btn p-2.5 rounded-xl font-bold text-xs border border-slate-700 bg-slate-800/80 transition">บท 2: Loop</button>
+                <button onclick="loadMission(2)" id="tab-2" class="tab-btn p-2.5 rounded-xl font-bold text-xs border border-slate-700 bg-slate-800/80 transition">บท 3: คีย์บอร์ด</button>
+                <button onclick="loadMission(3)" id="tab-3" class="tab-btn p-2.5 rounded-xl font-bold text-xs border border-slate-700 bg-slate-800/80 transition">บท 4: เมาส์</button>
+                <button onclick="loadMission(4)" id="tab-4" class="tab-btn p-2.5 rounded-xl font-bold text-xs border border-slate-700 bg-slate-800/80 transition">บท 5: การชน</button>
+                <button onclick="loadMission(5)" id="tab-5" class="tab-btn p-2.5 rounded-xl font-bold text-xs border border-slate-700 bg-slate-800/80 transition">บท 6: ตรรกะรวม</button>
+            </div>
+
+            <!-- Mission Description Card -->
+            <div class="glass-card p-5 rounded-2xl border-l-4 border-cyan-500">
+                <div class="flex justify-between items-start mb-2">
+                    <h2 id="mission-title" class="text-lg font-bold text-white flex items-center gap-2">
+                        <span>🚩</span> กำลังโหลดภารกิจ...
+                    </h2>
+                    <span id="mission-reward-badge" class="bg-cyan-500/20 text-cyan-300 border border-cyan-500/30 text-xs px-2.5 py-1 rounded-full font-bold">
+                        +20 XP
+                    </span>
+                </div>
+                <p id="mission-desc" class="text-slate-300 text-sm leading-relaxed mb-3"></p>
+                <div class="bg-slate-900/60 p-3 rounded-xl border border-slate-800 text-xs text-slate-400">
+                    <strong class="text-cyan-400">🎯 เป้าหมายการเรียนรู้:</strong>
+                    <span id="mission-objective" class="text-slate-300 ml-1"></span>
+                </div>
+            </div>
+
+            <!-- Code Editor & Console Box -->
+            <div class="glass-card rounded-2xl overflow-hidden flex flex-col border border-slate-700 shadow-2xl">
+                <!-- Editor Header -->
+                <div class="bg-slate-900/90 px-4 py-2.5 text-xs text-slate-400 flex justify-between items-center border-b border-slate-800">
+                    <div class="flex items-center gap-2">
+                        <div class="w-3 h-3 rounded-full bg-rose-500"></div>
+                        <div class="w-3 h-3 rounded-full bg-amber-500"></div>
+                        <div class="w-3 h-3 rounded-full bg-emerald-500"></div>
+                        <span class="ml-2 font-mono text-cyan-300 font-bold">event_mission.py</span>
+                    </div>
+                    <span class="text-[11px] text-slate-500">Python 3 (Pygame Event Handling)</span>
+                </div>
+
+                <!-- Textarea Code Editor -->
+                <textarea id="code-editor" class="w-full h-56 bg-[#020617]/90 p-4 text-emerald-400 focus:outline-none code-editor text-sm resize-none" spellcheck="false"></textarea>
+
+                <!-- Terminal / Console Output -->
+                <div class="border-t border-slate-800 bg-black/90">
+                    <div class="bg-slate-950 px-4 py-1.5 text-[11px] text-slate-500 font-mono flex justify-between items-center">
+                        <span>🖥️ Terminal Output / Traceback</span>
+                        <button onclick="clearConsole()" class="hover:text-slate-300 transition">ล้างข้อความ</button>
+                    </div>
+                    <div id="console-output" class="p-3 h-28 overflow-y-auto text-slate-300 text-xs font-mono whitespace-pre-wrap leading-relaxed"></div>
+                </div>
+
+                <!-- Action Buttons Toolbar -->
+                <div class="p-3 bg-slate-900/80 border-t border-slate-800 flex flex-wrap items-center justify-between gap-3">
+                    <div class="flex items-center gap-2">
+                        <!-- Quick Error Debugger Button -->
+                        <button id="quick-debug-btn" onclick="requestQuickDebug()" class="hidden bg-rose-600/90 hover:bg-rose-500 text-white text-xs px-3.5 py-2 rounded-xl font-bold transition flex items-center gap-1.5 animate-pulse">
+                            <span>🐞</span> ขอ AI ช่วยแก้บักด่วน!
+                        </button>
+                    </div>
+
+                    <div class="flex items-center gap-2">
+                        <button id="run-btn" onclick="runCodeLocally()" class="bg-slate-800 hover:bg-slate-700 text-slate-200 text-xs px-4 py-2.5 rounded-xl font-bold transition border border-slate-700 flex items-center gap-1.5">
+                            <span>▶</span> ทดสอบโค้ด
+                        </button>
+                        <button id="grade-btn" onclick="submitForAIGrading()" class="bg-gradient-to-r from-cyan-600 to-blue-600 hover:from-cyan-500 hover:to-blue-500 text-white text-xs px-5 py-2.5 rounded-xl font-bold transition shadow-lg shadow-cyan-500/20 flex items-center gap-1.5 transform active:scale-95">
+                            <span>🚀</span> ส่งให้ AI ตรวจประเมิน
+                        </button>
+                    </div>
+                </div>
+            </div>
+
+            <!-- AI Grader Feedback Section -->
+            <div id="ai-feedback-container" class="hidden glass-card p-5 rounded-2xl border-l-4 border-cyan-400">
+                <div class="flex items-center justify-between mb-3">
+                    <div class="flex items-center gap-2">
+                        <span class="text-xl">🤖</span>
+                        <h3 class="font-bold text-sm text-cyan-300">ผลการประเมินจาก Automated Code Grader</h3>
+                    </div>
+                    <div id="feedback-score-badge" class="font-mono font-bold text-sm px-3 py-1 rounded-lg"></div>
+                </div>
+                <div id="feedback-summary" class="text-white font-bold text-sm mb-2"></div>
+                <div id="feedback-text" class="text-slate-300 text-xs leading-relaxed mb-3"></div>
+                <div id="feedback-hint-container" class="hidden bg-amber-500/10 border border-amber-500/30 p-3 rounded-xl text-xs text-amber-200">
+                    <strong class="text-amber-400">💡 คำใบ้แนะนำ (Hint):</strong>
+                    <div id="feedback-hint" class="mt-1"></div>
+                </div>
+            </div>
+
+        </section>
+
+        <!-- Right: Simulation Preview & Achievements (5 cols) -->
+        <section class="lg:col-span-5 flex flex-col gap-4">
+            
+            <!-- Simulation Preview Window -->
+            <div class="glass-card p-5 rounded-2xl flex flex-col items-center">
+                <div class="w-full flex justify-between items-center mb-3">
+                    <span class="text-xs font-bold text-cyan-400 tracking-wider uppercase">Game Simulation Canvas</span>
+                    <span id="canvas-status-tag" class="text-[10px] bg-slate-800 text-slate-400 px-2 py-0.5 rounded font-mono">Idle</span>
+                </div>
+
+                <!-- Virtual Pygame Canvas Box -->
+                <div id="simulation-canvas" class="w-full h-64 bg-[#020617] border-2 border-slate-700 rounded-xl relative overflow-hidden flex flex-col items-center justify-center transition-all duration-500">
+                    <!-- Scanlines overlay -->
+                    <div class="absolute inset-0 opacity-15 bg-[linear-gradient(transparent_50%,rgba(0,0,0,0.6)_50%)] bg-[length:100%_4px] pointer-events-none"></div>
+                    
+                    <div id="sim-idle-view" class="text-center p-4">
+                        <div class="text-3xl mb-2">🎮</div>
+                        <div class="text-slate-400 text-xs font-mono">Pygame Event Window</div>
+                        <div class="text-slate-600 text-[11px] mt-1">รอการประมวลผลโค้ด...</div>
+                    </div>
+
+                    <!-- Live Animation Elements for Simulation -->
+                    <div id="sim-active-view" class="hidden w-full h-full relative p-4 flex flex-col justify-between">
+                        <div class="flex justify-between items-center text-[10px] font-mono text-cyan-400 bg-slate-900/80 px-2.5 py-1 rounded-lg border border-slate-800">
+                            <span id="sim-window-title">Pygame Window</span>
+                            <span id="sim-event-indicator" class="text-emerald-400">LISTENING EVENTS</span>
+                        </div>
+                        
+                        <div id="sim-interactive-stage" class="flex-1 flex items-center justify-center relative">
+                            <!-- Visual object rendered by mission -->
+                        </div>
+
+                        <div id="sim-event-log" class="text-[10px] font-mono text-slate-400 bg-black/60 p-2 rounded truncate">
+                            Events: [Waiting input...]
+                        </div>
+                    </div>
+
+                    <!-- Mission Passed Overlay -->
+                    <div id="sim-success-view" class="hidden absolute inset-0 bg-emerald-950/80 backdrop-blur-sm flex flex-col items-center justify-center text-center p-4">
+                        <div class="text-5xl mb-2 animate-bounce">🏆</div>
+                        <h4 class="text-emerald-300 font-bold text-lg">MISSION PASSED!</h4>
+                        <p id="success-reward-text" class="text-xs text-emerald-100 mt-1">ปลดล็อกเหรียญตราประจำบทเรียนแล้ว</p>
+                    </div>
+                </div>
+
+                <p id="status-msg" class="mt-4 text-slate-400 text-xs font-bold text-center bg-black/40 px-4 py-2 rounded-full w-full">
+                    พร้อมสำหรับการเริ่มภารกิจ
+                </p>
+            </div>
+
+            <!-- Achievements & Badges (6 Badges) -->
+            <div class="glass-card p-5 rounded-2xl">
+                <h3 class="text-xs font-bold text-slate-400 uppercase tracking-wider mb-4 flex items-center gap-2">
+                    <span>🎖️</span> เหรียญตราความสำเร็จ (Badges 6 บทเรียน)
+                </h3>
+                <div class="grid grid-cols-3 gap-3 text-center">
+                    <!-- Badge 0 -->
+                    <div id="badge-0" class="badge-item p-3 rounded-xl bg-slate-800/60 border border-slate-700/50 opacity-35 grayscale transition-all duration-500">
+                        <div class="w-12 h-12 mx-auto rounded-full bg-blue-950/80 border border-blue-500/40 flex items-center justify-center text-2xl mb-1.5 shadow">🎮</div>
+                        <div class="text-[11px] font-bold text-blue-300">Event Base</div>
+                        <div class="text-[9px] text-slate-500">บทที่ 1</div>
+                    </div>
+                    <!-- Badge 1 -->
+                    <div id="badge-1" class="badge-item p-3 rounded-xl bg-slate-800/60 border border-slate-700/50 opacity-35 grayscale transition-all duration-500">
+                        <div class="w-12 h-12 mx-auto rounded-full bg-purple-950/80 border border-purple-500/40 flex items-center justify-center text-2xl mb-1.5 shadow">🔄</div>
+                        <div class="text-[11px] font-bold text-purple-300">Game Loop</div>
+                        <div class="text-[9px] text-slate-500">บทที่ 2</div>
+                    </div>
+                    <!-- Badge 2 -->
+                    <div id="badge-2" class="badge-item p-3 rounded-xl bg-slate-800/60 border border-slate-700/50 opacity-35 grayscale transition-all duration-500">
+                        <div class="w-12 h-12 mx-auto rounded-full bg-amber-950/80 border border-amber-500/40 flex items-center justify-center text-2xl mb-1.5 shadow">⌨️</div>
+                        <div class="text-[11px] font-bold text-amber-300">Key Striker</div>
+                        <div class="text-[9px] text-slate-500">บทที่ 3</div>
+                    </div>
+                    <!-- Badge 3 -->
+                    <div id="badge-3" class="badge-item p-3 rounded-xl bg-slate-800/60 border border-slate-700/50 opacity-35 grayscale transition-all duration-500">
+                        <div class="w-12 h-12 mx-auto rounded-full bg-cyan-950/80 border border-cyan-500/40 flex items-center justify-center text-2xl mb-1.5 shadow">🖱️</div>
+                        <div class="text-[11px] font-bold text-cyan-300">Mouse Pro</div>
+                        <div class="text-[9px] text-slate-500">บทที่ 4</div>
+                    </div>
+                    <!-- Badge 4 -->
+                    <div id="badge-4" class="badge-item p-3 rounded-xl bg-slate-800/60 border border-slate-700/50 opacity-35 grayscale transition-all duration-500">
+                        <div class="w-12 h-12 mx-auto rounded-full bg-rose-950/80 border border-rose-500/40 flex items-center justify-center text-2xl mb-1.5 shadow">💥</div>
+                        <div class="text-[11px] font-bold text-rose-300">Hit Detector</div>
+                        <div class="text-[9px] text-slate-500">บทที่ 5</div>
+                    </div>
+                    <!-- Badge 5 -->
+                    <div id="badge-5" class="badge-item p-3 rounded-xl bg-slate-800/60 border border-slate-700/50 opacity-35 grayscale transition-all duration-500">
+                        <div class="w-12 h-12 mx-auto rounded-full bg-emerald-950/80 border border-emerald-500/40 flex items-center justify-center text-2xl mb-1.5 shadow">🏆</div>
+                        <div class="text-[11px] font-bold text-emerald-300">State Master</div>
+                        <div class="text-[9px] text-slate-500">บทที่ 6</div>
+                    </div>
+                </div>
+            </div>
+
+        </section>
+    </main>
+
+    <!-- Floating AI Chat Button -->
+    <div class="fixed bottom-6 right-6 z-50">
+        <button onclick="toggleChat()" class="bg-gradient-to-r from-cyan-500 to-blue-600 hover:from-cyan-400 hover:to-blue-500 text-white w-14 h-14 rounded-full flex items-center justify-center shadow-xl shadow-cyan-500/30 transition-all duration-300 transform hover:scale-105 active:scale-95 group relative">
+            <span class="text-2xl">🤖</span>
+            <span class="absolute -top-1 -right-1 flex h-3.5 w-3.5">
+                <span class="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75"></span>
+                <span class="relative inline-flex rounded-full h-3.5 w-3.5 bg-emerald-500 border-2 border-slate-900"></span>
+            </span>
+        </button>
+    </div>
+
+    <!-- AI Virtual TA Chat Window (Slide Drawer) -->
+    <div id="chat-panel" class="hidden fixed bottom-24 right-6 z-50 w-96 max-w-[calc(100vw-2rem)] h-[520px] glass-card rounded-2xl flex-col shadow-2xl border border-slate-700 overflow-hidden bg-slate-900/95">
+        <!-- Chat Header -->
+        <div class="p-3.5 bg-slate-950 border-b border-slate-800 flex justify-between items-center">
+            <div class="flex items-center gap-2.5">
+                <div class="w-8 h-8 rounded-full bg-gradient-to-tr from-cyan-500 to-blue-600 flex items-center justify-center text-base shadow">
+                    🤖
+                </div>
+                <div>
+                    <h3 class="font-bold text-xs text-white">ครูพี่ผู้ช่วยสอน AI (Virtual TA)</h3>
+                    <p class="text-[10px] text-emerald-400">● ประจำวิชา Pygame Event Handling</p>
+                </div>
+            </div>
+            <button onclick="toggleChat()" class="text-slate-400 hover:text-white p-1 rounded-lg transition">✕</button>
+        </div>
+
+        <!-- Chat Messages Container -->
+        <div id="chat-messages" class="flex-1 p-4 overflow-y-auto space-y-3 text-xs leading-relaxed">
+            <div class="flex justify-start">
+                <div class="bg-slate-800 text-slate-200 p-3 rounded-2xl rounded-tl-sm border border-slate-700/60 max-w-[85%]">
+                    สวัสดีครับน้องนักรบโค้ด! 👋 ครูพี่ AI พร้อมช่วยแนะนำคำใบ้และช่วยสะกิดจุดผิดในบทเรียน Pygame นะครับ ติดปัญหาข้อไหนถามได้เลย!
+                </div>
+            </div>
+        </div>
+
+        <!-- Chat Input Field -->
+        <div class="p-3 bg-slate-950 border-t border-slate-800 flex gap-2">
+            <input type="text" id="user-input" onkeypress="handleKeyPress(event)" placeholder="พิมพ์คำถามหรือข้อสงสัยที่นี่..." class="flex-1 bg-slate-900 text-slate-100 text-xs px-3.5 py-2.5 rounded-xl border border-slate-800 focus:outline-none focus:border-cyan-500 placeholder-slate-500">
+            <button onclick="sendMessage()" id="send-chat-btn" class="bg-cyan-600 hover:bg-cyan-500 text-white px-3.5 py-2.5 rounded-xl font-bold transition flex items-center justify-center">
+                ➤
+            </button>
+        </div>
+    </div>
+
+    <!-- Scripts -->
+    <script>
+        const BACKEND_BASE = window.location.protocol.startsWith("http") ? "" : "http://127.0.0.1:8000";
+        const APP_SCRIPT_URL = "https://script.google.com/macros/s/AKfycbyoDP7VBLzRps63XnxM19KNUMM4LOduLKe2n1wNmGeXffkWFGYifJLCOiO0eAvvw_Foew/exec";
+
+        const currentStudentId = localStorage.getItem('studentId') || 'guest';
+        const xpKey = `xp_${currentStudentId}`;
+        const levelKey = `level_${currentStudentId}`;
+        const missionsKey = `missions_pygame_${currentStudentId}`;
+
+        let xp = parseInt(localStorage.getItem(xpKey)) || 0;
+        let level = parseInt(localStorage.getItem(levelKey)) || 1;
+        let completedMissions = JSON.parse(localStorage.getItem(missionsKey)) || [false, false, false, false, false, false];
+
+        let pyodide = null;
+        let currentMission = 0;
+        let lastErrorTraceback = "";
+
+        // ==========================================
+        // 📚 ข้อมูลภารกิจ 6 บทเรียน (Missions)
+        // ==========================================
+        const missions = [
+            {
+                id: 0,
+                unit: "บทที่ 1",
+                title: "ภารกิจที่ 1: กำเนิดหน้าต่างเหตุการณ์ (Event Window)",
+                desc: "เขียนคำสั่งเริ่มต้น Pygame สร้างหน้าต่างแสดงผลขนาด 640x480 และตั้งชื่อหัวข้อหน้าต่างเกมว่า <code>'My Pygame Window'</code>",
+                objective: "เรียกใช้ pygame.init(), pygame.display.set_mode((640, 480)) และ pygame.display.set_caption()",
+                xpReward: 20,
+                initialCode: `# บทที่ 1: การเตรียมโครงสร้างพื้นฐาน
+import pygame
+
+# 1. เริ่มต้นระบบ pygame
+pygame.init()
+
+# 2. สร้างหน้าต่างแสดงผล (ความกว้าง 640, ความสูง 480)
+screen = pygame.display.set_mode((640, 480))
+
+# 3. กำหนดชื่อหัวข้อหน้าต่างเกม
+# ให้เติมคำสั่งตั้งชื่อหน้าต่างตรงนี้
+pygame.display.set_caption("My Pygame Window")
+
+print("เตรียมหน้าต่างเกมเรียบร้อยแล้ว!")
+`,
+                visualType: "window"
+            },
+            {
+                id: 1,
+                unit: "บทที่ 2",
+                title: "ภารกิจที่ 2: วงจรลูปและการจัดการคิว (Game Loop & QUIT)",
+                desc: "สร้าง Game Loop ด้วย <code>while running:</code> และดึงเหตุการณ์จากคิวด้วย <code>pygame.event.get()</code> เพื่อดักจับเมื่อผู้เล่นกดปิดหน้าต่าง (<code>pygame.QUIT</code>) ให้จบการทำงาน",
+                objective: "วนลูป Game Loop ตรวจสอบ event.type == pygame.QUIT แล้วปรับ running = False และปิดระบบด้วย pygame.quit()",
+                xpReward: 20,
+                initialCode: `# บทที่ 2: การจัดการคิวเหตุการณ์และ Game Loop
+import pygame
+
+pygame.init()
+screen = pygame.display.set_mode((640, 480))
+running = True
+
+# สร้าง Game Loop
+while running:
+    # ดึงเหตุการณ์ทั้งหมดที่เกิดขึ้นในคิว
+    for event in pygame.event.get():
+        # ตรวจสอบว่าผู้เล่นกดปิดหน้าต่างหรือไม่
+        if event.type == pygame.QUIT:
+            running = False
+
+# จบการทำงานเมื่อออกจากลูป
+pygame.quit()
+print("ปิดหน้าต่างเกมเรียบร้อยแล้ว")
+`,
+                visualType: "loop"
+            },
+            {
+                id: 2,
+                unit: "บทที่ 3",
+                title: "ภารกิจที่ 3: สัมผัสปุ่มกด (Keyboard Event Detection)",
+                desc: "ดักจับเหตุการณ์การกดแป้นพิมพ์ <code>pygame.KEYDOWN</code> เมื่อผู้เล่นกดปุ่มลูกศรซ้าย (<code>pygame.K_LEFT</code>) หรือปุ่มลูกศรขวา (<code>pygame.K_RIGHT</code>)",
+                objective: "ตรวจสอบเงื่อนไข event.type == pygame.KEYDOWN และเช็ค event.key กับ pygame.K_LEFT / pygame.K_RIGHT",
+                xpReward: 20,
+                initialCode: `# บทที่ 3: การตรวจจับการกดแป้นพิมพ์
+import pygame
+
+pygame.init()
+screen = pygame.display.set_mode((640, 480))
+running = True
+
+while running:
+    for event in pygame.event.get():
+        if event.type == pygame.QUIT:
+            running = False
+        
+        # เขียนเงื่อนไขตรวจจับ KEYDOWN
+        elif event.type == pygame.KEYDOWN:
+            if event.key == pygame.K_LEFT:
+                print("ผู้เล่นกดปุ่ม: ลูกศรซ้าย (LEFT)")
+            elif event.key == pygame.K_RIGHT:
+                print("ผู้เล่นกดปุ่ม: ลูกศรขวา (RIGHT)")
+
+pygame.quit()
+`,
+                visualType: "keyboard"
+            },
+            {
+                id: 3,
+                unit: "บทที่ 4",
+                title: "ภารกิจที่ 4: พิกัดคลิกเมาส์ (Mouse Event Tracking)",
+                desc: "ตรวจจับเมื่อผู้เล่นคลิกเมาส์ <code>pygame.MOUSEBUTTONDOWN</code> และใช้ <code>pygame.mouse.get_pos()</code> เพื่อนำพิกัด (X, Y) มาแสดงผล",
+                objective: "ตรวจสอบ event.type == pygame.MOUSEBUTTONDOWN และหาพิกัดด้วย pygame.mouse.get_pos()",
+                xpReward: 20,
+                initialCode: `# บทที่ 4: การตรวจจับการคลิกเมาส์
+import pygame
+
+pygame.init()
+screen = pygame.display.set_mode((640, 480))
+running = True
+
+while running:
+    for event in pygame.event.get():
+        if event.type == pygame.QUIT:
+            running = False
+        
+        # ตรวจจับการคลิกเมาส์
+        elif event.type == pygame.MOUSEBUTTONDOWN:
+            mouse_pos = pygame.mouse.get_pos()
+            print(f"คลิกเมาส์ที่พิกัด: {mouse_pos}")
+
+pygame.quit()
+`,
+                visualType: "mouse"
+            },
+            {
+                id: 4,
+                unit: "บทที่ 5",
+                title: "ภารกิจที่ 5: ตรวจสอบการชน (Collision Detection)",
+                desc: "สร้างกรอบสี่เหลี่ยม Rect ของผู้เล่น <code>player_rect</code> และเหรียญทอง <code>coin_rect</code> จากนั้นใช้คำสั่ง <code>colliderect()</code> ตรวจสอบว่าวัตถุทั้งสองชนกันหรือไม่",
+                objective: "สร้าง Rect ด้วย pygame.Rect(x, y, w, h) และตรวจสอบการชนด้วย player_rect.colliderect(coin_rect)",
+                xpReward: 20,
+                initialCode: `# บทที่ 5: การตรวจสอบการชนด้วย Rect
+import pygame
+
+pygame.init()
+
+# สร้าง Rect ของผู้เล่น (x=100, y=100, กว้าง=50, สูง=50)
+player_rect = pygame.Rect(100, 100, 50, 50)
+
+# สร้าง Rect ของเหรียญทอง (x=120, y=110, กว้าง=30, สูง=30)
+coin_rect = pygame.Rect(120, 110, 30, 30)
+
+# ตรวจสอบการชนกันระหว่าง player_rect กับ coin_rect
+if player_rect.colliderect(coin_rect):
+    print("ตรวจพบการชน! ผู้เล่นเก็บเหรียญทองได้สำเร็จ")
+else:
+    print("ยังไม่ชนวัตถุ")
+`,
+                visualType: "collision"
+            },
+            {
+                id: 5,
+                unit: "บทที่ 6",
+                title: "ภารกิจที่ 6: รวมตรรกะเหตุการณ์และสถานะเกม (Game State & Scoring)",
+                desc: "รวมเหตุการณ์เข้ากับ Game State: สร้างตัวแปร <code>score = 0</code> และ <code>state = 'PLAYING'</code> เมื่อกดปุ่ม Spacebar (<code>pygame.K_SPACE</code>) ในขณะเล่น ให้เพิ่มแต้ม 10 คะแนน",
+                objective: "เชื่อมต่อสถานะ Game State ร่วมกับ Event KEYDOWN เพื่ออัปเดตคะแนนและเปลี่ยนสถานะเกม",
+                xpReward: 20,
+                initialCode: `# บทที่ 6: บูรณาการเหตุการณ์ร่วมกับ State และคะแนน
+import pygame
+
+pygame.init()
+screen = pygame.display.set_mode((640, 480))
+
+score = 0
+state = "PLAYING"
+running = True
+
+while running:
+    for event in pygame.event.get():
+        if event.type == pygame.QUIT:
+            running = False
+            
+        elif event.type == pygame.KEYDOWN:
+            if event.key == pygame.K_SPACE and state == "PLAYING":
+                score += 10
+                print(f"สะสมแต้มสำเร็จ! คะแนนรวม: {score}")
+            elif event.key == pygame.K_ESCAPE:
+                state = "PAUSE"
+                print("หยุดเกมชั่วคราว (PAUSE)")
+
+pygame.quit()
+`,
+                visualType: "state"
+            }
+        ];
+
+        // ==========================================
+        // 🚀 เตรียมระบบเมื่อหน้าเว็บโหลด
+        // ==========================================
+        window.addEventListener('DOMContentLoaded', () => {
+            const studentName = localStorage.getItem('studentName') || 'นักรบไอที (Agent)';
+            document.getElementById('student-name-display').innerHTML = `ยินดีต้อนรับ Agent: <span class="text-emerald-400 font-bold">${studentName}</span> 🚀`;
+            
+            updateGamificationUI();
+            loadMission(0);
+            initPyodide();
+        });
+
+        function updateGamificationUI() {
+            document.getElementById('xp-value').innerText = xp;
+            const xpPercent = Math.min((xp / 120) * 100, 100);
+            document.getElementById('xp-bar').style.width = xpPercent + "%";
+            document.getElementById('user-level').innerText = level;
+
+            completedMissions.forEach((isCompleted, index) => {
+                if (isCompleted) unlockBadgeUI(index);
+            });
+        }
+
+        function unlockBadgeUI(index) {
+            const badge = document.getElementById(`badge-${index}`);
+            if (badge) {
+                badge.classList.remove('opacity-35', 'grayscale');
+                badge.classList.add('border-emerald-500/80', 'bg-slate-800/90', 'shadow-[0_0_15px_rgba(16,185,129,0.3)]');
+            }
+        }
+
+        function loadMission(index) {
+            currentMission = index;
+            const m = missions[index];
+
+            // Tab button styles
+            for (let i = 0; i < 6; i++) {
+                const tab = document.getElementById(`tab-${i}`);
+                if (tab) tab.classList.remove('active');
+            }
+            const activeTab = document.getElementById(`tab-${index}`);
+            if (activeTab) activeTab.classList.add('active');
+
+            // Set Mission Info
+            document.getElementById('mission-title').innerHTML = `<span>🚩</span> ${m.title}`;
+            document.getElementById('mission-desc').innerHTML = m.desc;
+            document.getElementById('mission-objective').innerText = m.objective;
+            document.getElementById('mission-reward-badge').innerText = `+${m.xpReward} XP`;
+
+            // Set Editor Code
+            const savedCode = localStorage.getItem(`code_${currentStudentId}_m${index}`);
+            document.getElementById('code-editor').value = savedCode || m.initialCode;
+
+            // Reset Feedback & Console
+            document.getElementById('console-output').innerHTML = "";
+            document.getElementById('quick-debug-btn').classList.add('hidden');
+            document.getElementById('ai-feedback-container').classList.add('hidden');
+
+            // Render Preview Simulation
+            renderVisualSimulation(m);
+
+            if (completedMissions[index]) {
+                document.getElementById('status-msg').innerText = "✅ คุณผ่านภารกิจประจำบทนี้เรียบร้อยแล้ว!";
+                document.getElementById('status-msg').className = "mt-4 text-emerald-400 text-xs font-bold text-center bg-emerald-950/40 border border-emerald-500/30 px-4 py-2 rounded-full w-full";
+            } else {
+                document.getElementById('status-msg').innerText = "พร้อมสำหรับการทดสอบและส่งตรวจภารกิจ";
+                document.getElementById('status-msg').className = "mt-4 text-slate-400 text-xs font-bold text-center bg-black/40 px-4 py-2 rounded-full w-full";
+            }
+        }
+
+        // ==========================================
+        // 🎨 Simulation Preview Renderer
+        // ==========================================
+        function renderVisualSimulation(mission) {
+            const canvas = document.getElementById('simulation-canvas');
+            const idleView = document.getElementById('sim-idle-view');
+            const activeView = document.getElementById('sim-active-view');
+            const successView = document.getElementById('sim-success-view');
+            const stage = document.getElementById('sim-interactive-stage');
+
+            idleView.classList.add('hidden');
+            activeView.classList.remove('hidden');
+            successView.classList.add('hidden');
+            canvas.classList.remove('success-glow');
+
+            document.getElementById('sim-window-title').innerText = `Pygame - ${mission.unit}`;
+
+            let stageHtml = "";
+            if (mission.visualType === "window") {
+                stageHtml = `
+                    <div class="border-2 border-dashed border-cyan-500/50 bg-cyan-950/30 p-6 rounded-xl text-center">
+                        <div class="text-3xl mb-1">🖥️</div>
+                        <div class="text-xs font-bold text-cyan-300">Pygame Display Surface</div>
+                        <div class="text-[10px] text-slate-400">ขนาด 640x480 pixels</div>
+                    </div>
+                `;
+            } else if (mission.visualType === "loop") {
+                stageHtml = `
+                    <div class="flex items-center gap-4">
+                        <div class="w-14 h-14 rounded-full border-4 border-purple-500/80 border-t-transparent animate-spin flex items-center justify-center">
+                            <span class="text-xs">🔄</span>
+                        </div>
+                        <div class="text-left text-xs font-mono">
+                            <div class="text-purple-300 font-bold">Game Loop: RUNNING</div>
+                            <div class="text-slate-400 text-[10px]">คิวเหตุการณ์กำลังรอรับ pygame.QUIT</div>
+                        </div>
+                    </div>
+                `;
+            } else if (mission.visualType === "keyboard") {
+                stageHtml = `
+                    <div class="flex flex-col items-center gap-2">
+                        <div class="flex gap-2">
+                            <span class="px-3 py-1.5 bg-slate-800 border border-slate-600 rounded text-xs font-mono">▲</span>
+                        </div>
+                        <div class="flex gap-2">
+                            <span class="px-3 py-1.5 bg-slate-800 border border-slate-600 rounded text-xs font-mono">◄ K_LEFT</span>
+                            <span class="px-3 py-1.5 bg-slate-800 border border-slate-600 rounded text-xs font-mono">▼</span>
+                            <span class="px-3 py-1.5 bg-slate-800 border border-slate-600 rounded text-xs font-mono">► K_RIGHT</span>
+                        </div>
+                        <span class="text-[10px] text-amber-300 mt-1">รอการตรวจจับ KEYDOWN</span>
+                    </div>
+                `;
+            } else if (mission.visualType === "mouse") {
+                stageHtml = `
+                    <div class="text-center p-4 border border-cyan-500/30 rounded-xl bg-cyan-950/20">
+                        <div class="text-3xl mb-1 animate-pulse">🖱️</div>
+                        <div class="text-xs text-cyan-300 font-mono">MOUSEBUTTONDOWN Listener</div>
+                        <div class="text-[10px] text-slate-400">pygame.mouse.get_pos() พร้อมทำงาน</div>
+                    </div>
+                `;
+            } else if (mission.visualType === "collision") {
+                stageHtml = `
+                    <div class="relative w-48 h-28 border border-slate-700 bg-slate-900/50 rounded-lg flex items-center justify-center">
+                        <div class="w-10 h-10 bg-cyan-600 rounded border border-cyan-400 flex items-center justify-center text-xs font-mono">Player</div>
+                        <div class="w-7 h-7 bg-amber-500 rounded-full border border-amber-300 flex items-center justify-center text-[10px] -ml-2">🪙</div>
+                    </div>
+                `;
+            } else if (mission.visualType === "state") {
+                stageHtml = `
+                    <div class="flex flex-col items-center gap-2">
+                        <div class="flex gap-4 text-xs font-mono bg-slate-900/90 px-4 py-2 rounded-xl border border-slate-800">
+                            <span>สถานะ: <strong class="text-emerald-400">PLAYING</strong></span>
+                            <span>แต้มสะสม: <strong class="text-amber-400">Score +10</strong></span>
+                        </div>
+                        <span class="text-[10px] text-slate-400">กดปุ่ม K_SPACE หรือ K_ESCAPE</span>
+                    </div>
+                `;
+            }
+
+            stage.innerHTML = stageHtml;
+        }
+
+        function showMissionSuccessView() {
+            const canvas = document.getElementById('simulation-canvas');
+            canvas.classList.add('success-glow');
+            document.getElementById('sim-success-view').classList.remove('hidden');
+        }
+
+        // ==========================================
+        // 🐍 Pyodide รัน Python บน Browser
+        // ==========================================
+        async function initPyodide() {
+            try {
+                pyodide = await loadPyodide({ indexURL: "https://cdn.jsdelivr.net/pyodide/v0.25.0/full/" });
+                pyodide.setStdout({
+                    batched: (text) => {
+                        const out = document.getElementById('console-output');
+                        out.innerHTML += text + "\n";
+                        out.scrollTop = out.scrollHeight;
+                    }
+                });
+                console.log("Pyodide Engine Ready!");
+            } catch (err) {
+                console.warn("Pyodide could not be initialized locally, fallback to AI validator", err);
+            }
+        }
+
+        async function runCodeLocally() {
+            const code = document.getElementById('code-editor').value;
+            const consoleBox = document.getElementById('console-output');
+            const debugBtn = document.getElementById('quick-debug-btn');
+            
+            consoleBox.innerHTML = "▶ กำลังทดสอบโค้ด...\n";
+            debugBtn.classList.add('hidden');
+            lastErrorTraceback = "";
+
+            // บันทึกโค้ดลง localStorage
+            localStorage.setItem(`code_${currentStudentId}_m${currentMission}`, code);
+
+            // จำลอง Mock Module สำหรับ pygame ในเบราว์เซอร์ เพื่อให้นักเรียนทดสอบโครงสร้างได้
+            const mockPygameSetup = `
+import sys
+class MockPygame:
+    K_LEFT = "K_LEFT"
+    K_RIGHT = "K_RIGHT"
+    K_SPACE = "K_SPACE"
+    K_ESCAPE = "K_ESCAPE"
+    QUIT = 12
+    KEYDOWN = 2
+    KEYUP = 3
+    MOUSEBUTTONDOWN = 5
+    
+    class display:
+        @staticmethod
+        def set_mode(size):
+            return "DisplaySurface(size=" + str(size) + ")"
+        @staticmethod
+        def set_caption(title):
+            pass
+            
+    class mouse:
+        @staticmethod
+        def get_pos():
+            return (320, 240)
+            
+    class Rect:
+        def __init__(self, x, y, w, h):
+            self.x, self.y, self.w, self.h = x, y, w, h
+        def colliderect(self, other):
+            return True
+            
+    class event:
+        @staticmethod
+        def get():
+            return []
+            
+    @staticmethod
+    def init():
+        return (6, 0)
+        
+    @staticmethod
+    def quit():
+        pass
+
+sys.modules['pygame'] = MockPygame()
+`;
+
+            if (pyodide) {
+                try {
+                    await pyodide.runPythonAsync(mockPygameSetup);
+                    await pyodide.runPythonAsync(code);
+                    consoleBox.innerHTML += "\n✅ โค้ดผ่านการทดสอบทางไวยากรณ์ (Syntax Check สำเร็จ)";
+                } catch (err) {
+                    lastErrorTraceback = err.message;
+                    consoleBox.innerHTML += `\n❌ เกิดข้อผิดพลาด (Traceback):\n${err.message}`;
+                    debugBtn.classList.remove('hidden');
+                }
+            } else {
+                consoleBox.innerHTML += "⚠️ พร้อมส่งให้ AI ตรวจสอบความถูกต้องโดยตรง";
+            }
+        }
+
+        function clearConsole() {
+            document.getElementById('console-output').innerHTML = "";
+            document.getElementById('quick-debug-btn').classList.add('hidden');
+        }
+
+        // ==========================================
+        // 🚀 ส่งโค้ดให้ AI ตรวจประเมิน (Prompt ชุดที่ 2)
+        // ==========================================
+        async function submitForAIGrading() {
+            const code = document.getElementById('code-editor').value.trim();
+            const gradeBtn = document.getElementById('grade-btn');
+            const feedbackContainer = document.getElementById('ai-feedback-container');
+            const statusMsg = document.getElementById('status-msg');
+
+            if (!code) {
+                alert("กรุณาเขียนโค้ดก่อนส่งประเมินผลครับ");
+                return;
+            }
+
+            gradeBtn.disabled = true;
+            gradeBtn.innerHTML = `<span>⏳</span> AI กำลังตรวจ...`;
+            statusMsg.innerText = "🤖 ระบบกำลังส่งโค้ดให้นักประเมิน AI วิเคราะห์ผล...";
+            statusMsg.className = "mt-4 text-cyan-400 text-xs font-bold text-center bg-cyan-950/40 border border-cyan-500/30 px-4 py-2 rounded-full w-full";
+
+            try {
+                const response = await fetch(`${BACKEND_BASE}/grade-code`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        lesson_number: currentMission + 1,
+                        student_code: code
+                    })
+                });
+
+                if (!response.ok) throw new Error("ไม่สามารถเชื่อมต่อเซิร์ฟเวอร์ตรวจผลได้");
+                const result = await response.json();
+
+                // แสดงผลลัพธ์
+                feedbackContainer.classList.remove('hidden');
+                document.getElementById('feedback-summary').innerText = result.summary || "สรุปผลการประเมิน";
+                document.getElementById('feedback-text').innerText = result.feedback || "";
+
+                const scoreBadge = document.getElementById('feedback-score-badge');
+                scoreBadge.innerText = `คะแนน: ${result.scorePercentage}%`;
+
+                if (result.isCorrect || result.scorePercentage >= 80) {
+                    scoreBadge.className = "font-mono font-bold text-xs px-3 py-1 rounded-lg bg-emerald-500/20 text-emerald-300 border border-emerald-500/40";
+                    feedbackContainer.className = "glass-card p-5 rounded-2xl border-l-4 border-emerald-500";
+                    
+                    document.getElementById('feedback-hint-container').classList.add('hidden');
+                    
+                    // ปลดล็อกภารกิจและ Gamification
+                    if (!completedMissions[currentMission]) {
+                        completedMissions[currentMission] = true;
+                        localStorage.setItem(missionsKey, JSON.stringify(completedMissions));
+                        const m = missions[currentMission];
+                        awardXP(m.xpReward);
+                        unlockBadgeUI(currentMission);
+                    }
+
+                    showMissionSuccessView();
+                    statusMsg.innerText = "🎉 ภารกิจสำเร็จ! ยอดเยี่ยมมาก นักรบโค้ด!";
+                    statusMsg.className = "mt-4 text-emerald-400 text-xs font-bold text-center bg-emerald-950/40 border border-emerald-500/30 px-4 py-2 rounded-full w-full";
+                } else {
+                    scoreBadge.className = "font-mono font-bold text-xs px-3 py-1 rounded-lg bg-rose-500/20 text-rose-300 border border-rose-500/40";
+                    feedbackContainer.className = "glass-card p-5 rounded-2xl border-l-4 border-rose-500";
+
+                    // แสดง Hint (โดยไม่สปอยล์เฉลย)
+                    if (result.hint) {
+                        document.getElementById('feedback-hint-container').classList.remove('hidden');
+                        document.getElementById('feedback-hint').innerText = result.hint;
+                    } else {
+                        document.getElementById('feedback-hint-container').classList.add('hidden');
+                    }
+
+                    statusMsg.innerText = "⚠️ ภารกิจยังไม่สมบูรณ์ ลองอ่านคำใบ้และปรับปรุงดูอีกนิดนะ!";
+                    statusMsg.className = "mt-4 text-amber-400 text-xs font-bold text-center bg-amber-950/40 border border-amber-500/30 px-4 py-2 rounded-full w-full";
+                }
+
+            } catch (err) {
+                console.error("Grading Error:", err);
+                alert("เกิดข้อผิดพลาดในการส่งตรวจโค้ด กรุณาตรวจสอบว่าเปิด backend `python main.py` อยู่หรือไม่");
+            } finally {
+                gradeBtn.disabled = false;
+                gradeBtn.innerHTML = `<span>🚀</span> ส่งให้ AI ตรวจประเมิน`;
+            }
+        }
+
+        // ==========================================
+        // 🐞 ขอ AI ช่วยแก้บักด่วน (Prompt ชุดที่ 3)
+        // ==========================================
+        async function requestQuickDebug() {
+            const code = document.getElementById('code-editor').value;
+            const debugBtn = document.getElementById('quick-debug-btn');
+
+            if (!lastErrorTraceback) {
+                lastErrorTraceback = "SyntaxError: Unknown error in execution";
+            }
+
+            debugBtn.disabled = true;
+            debugBtn.innerHTML = `<span>⏳</span> AI กำลังวิเคราะห์บัก...`;
+
+            try {
+                const response = await fetch(`${BACKEND_BASE}/debug-error`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        student_code: code,
+                        error_traceback: lastErrorTraceback
+                    })
+                });
+
+                if (!response.ok) throw new Error("Error fetching debug advice");
+                const data = await response.json();
+
+                // แสดงผลในกล่อง Console
+                const consoleBox = document.getElementById('console-output');
+                consoleBox.innerHTML += `\n\n💡 [AI Pygame Bug Hunter แนะนำ]:\n${data.debug_advice}\n`;
+                consoleBox.scrollTop = consoleBox.scrollHeight;
+
+            } catch (err) {
+                alert("ไม่สามารถติดต่อ AI Debugger ได้ในขณะนี้");
+            } finally {
+                debugBtn.disabled = false;
+                debugBtn.innerHTML = `<span>🐞</span> ขอ AI ช่วยแก้บักด่วน!`;
+            }
+        }
+
+        // ==========================================
+        // 🎮 การจัดการ Gamification (XP & Level)
+        // ==========================================
+        function awardXP(amount) {
+            xp += amount;
+            if (xp > 120) xp = 120;
+            
+            // Level Up ทุก 40 XP
+            const calculatedLevel = Math.floor(xp / 40) + 1;
+            if (calculatedLevel > level) {
+                level = calculatedLevel;
+                alert(`🎉 เลเวลอัป! คุณก้าวสู่ Level ${level} แล้ว! 🚀`);
+            }
+
+            localStorage.setItem(xpKey, xp);
+            localStorage.setItem(levelKey, level);
+            updateGamificationUI();
+            saveProgressToGoogleSheet(xp, level);
+        }
+
+        function resetGameProgress() {
+            if (confirm("⚠️ คุณแน่ใจหรือไม่ว่าต้องการเริ่มใหม่ทั้งหมด? คะแนนและความคืบหน้าจะถูกรีเซ็ต")) {
+                xp = 0;
+                level = 1;
+                completedMissions = [false, false, false, false, false, false];
+                localStorage.setItem(xpKey, xp);
+                localStorage.setItem(levelKey, level);
+                localStorage.setItem(missionsKey, JSON.stringify(completedMissions));
+                for (let i = 0; i < 6; i++) {
+                    localStorage.removeItem(`code_${currentStudentId}_m${i}`);
+                }
+                saveProgressToGoogleSheet(xp, level);
+                window.location.reload();
+            }
+        }
+
+        function saveProgressToGoogleSheet(currentXP, currentLevel) {
+            if (!currentStudentId || currentStudentId === 'guest' || !APP_SCRIPT_URL) return;
+            const missionsStatus = completedMissions.map((isDone, i) => isDone ? `ผ่านบทที่ ${i + 1}` : '').filter(Boolean).join(', ');
+            const url = `${APP_SCRIPT_URL}?studentId=${currentStudentId}&xp=${currentXP}&level=${currentLevel}&missions=${encodeURIComponent(missionsStatus)}`;
+            fetch(url, { method: 'GET', mode: 'no-cors' }).catch(err => console.error("Save Sheet Error:", err));
+        }
+
+        // ==========================================
+        // 🤖 Virtual TA AI Chat Assistant (Prompt ชุดที่ 1)
+        // ==========================================
+        const chatPanel = document.getElementById('chat-panel');
+        const chatMessages = document.getElementById('chat-messages');
+        const userInput = document.getElementById('user-input');
+
+        function toggleChat() {
+            if (chatPanel.classList.contains('hidden')) {
+                chatPanel.classList.remove('hidden');
+                chatPanel.classList.add('flex', 'chat-slide-up');
+                chatPanel.classList.remove('chat-slide-down');
+                setTimeout(() => userInput.focus(), 200);
+            } else {
+                chatPanel.classList.remove('chat-slide-up');
+                chatPanel.classList.add('chat-slide-down');
+                setTimeout(() => {
+                    chatPanel.classList.add('hidden');
+                    chatPanel.classList.remove('flex');
+                }, 250);
+            }
+        }
+
+        function handleKeyPress(e) {
+            if (e.key === 'Enter') sendMessage();
+        }
+
+        async function sendMessage() {
+            const text = userInput.value.trim();
+            if (!text) return;
+
+            // Render User Bubble
+            appendChatMessage(text, 'user');
+            userInput.value = '';
+
+            // Render Loading Bubble
+            const loadingId = 'loading-' + Date.now();
+            chatMessages.innerHTML += `
+                <div id="${loadingId}" class="flex justify-start">
+                    <div class="bg-slate-800 p-2.5 rounded-2xl rounded-tl-sm border border-slate-700 flex items-center gap-1.5 h-8 w-14">
+                        <div class="w-1.5 h-1.5 bg-cyan-400 rounded-full animate-bounce"></div>
+                        <div class="w-1.5 h-1.5 bg-cyan-400 rounded-full animate-bounce" style="animation-delay: 0.15s"></div>
+                        <div class="w-1.5 h-1.5 bg-cyan-400 rounded-full animate-bounce" style="animation-delay: 0.3s"></div>
+                    </div>
+                </div>
+            `;
+            chatMessages.scrollTop = chatMessages.scrollHeight;
+
+            try {
+                const response = await fetch(`${BACKEND_BASE}/chat`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        message: text,
+                        current_lesson: currentMission + 1
+                    })
+                });
+
+                const loader = document.getElementById(loadingId);
+                if (loader) loader.remove();
+
+                if (!response.ok) throw new Error("Network response was not ok");
+                const data = await response.json();
+                appendChatMessage(data.reply, 'bot');
+            } catch (err) {
+                const loader = document.getElementById(loadingId);
+                if (loader) loader.remove();
+                appendChatMessage("⚠️ ไม่สามารถติดต่อครูพี่ AI ได้ กรุณาตรวจสอบว่า backend ทำงานอยู่หรือไม่", 'bot');
+            }
+        }
+
+        function appendChatMessage(text, sender) {
+            const bubble = document.createElement('div');
+            bubble.className = sender === 'user' ? 'flex justify-end' : 'flex justify-start';
+
+            const inner = document.createElement('div');
+            if (sender === 'user') {
+                inner.className = 'bg-cyan-600 text-white p-3 rounded-2xl rounded-tr-sm text-xs shadow max-w-[85%] break-words';
+            } else {
+                inner.className = 'bg-slate-800 text-slate-200 p-3 rounded-2xl rounded-tl-sm text-xs border border-slate-700/80 shadow max-w-[85%] break-words whitespace-pre-wrap';
+            }
+            inner.innerText = text;
+
+            bubble.appendChild(inner);
+            chatMessages.appendChild(bubble);
+            chatMessages.scrollTop = chatMessages.scrollHeight;
+        }
+    </script>
+</body>
+</html>

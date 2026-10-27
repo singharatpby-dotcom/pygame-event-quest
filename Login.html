@@ -1,0 +1,106 @@
+<!DOCTYPE html>
+<html lang="th" class="scroll-smooth dark">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Game Dev Quest - Login</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Prompt:wght@300;400;600;700&family=Fira+Code:wght@400;600&display=swap" rel="stylesheet">
+    <style>
+        body { background-color: #020617; overflow: hidden; font-family: 'Prompt', sans-serif; color: white;}
+        .mesh-bg { position: fixed; top: 0; left: 0; width: 100%; height: 100%; z-index: -1; background: radial-gradient(circle at 0% 0%, #0c4a6e 0%, transparent 40%), radial-gradient(circle at 100% 100%, #881337 0%, transparent 40%), radial-gradient(circle at 50% 50%, #020617 0%, #020617 100%); animation: pulse-bg 10s infinite alternate; }
+        @keyframes pulse-bg { 0% { opacity: 0.8; } 100% { opacity: 1; } }
+        .glass-card { background: rgba(30, 41, 59, 0.7); backdrop-filter: blur(16px); border: 1px solid rgba(255, 255, 255, 0.1); box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.5); }
+        .input-field { background: rgba(15, 23, 42, 0.6); border: 1px solid rgba(255, 255, 255, 0.1); color: #38bdf8; }
+        .input-field:focus { outline: none; border-color: #0ea5e9; box-shadow: 0 0 15px rgba(14, 165, 233, 0.3); background: rgba(15, 23, 42, 0.9); }
+    </style>
+</head>
+<body class="flex flex-col items-center justify-center min-h-screen relative">
+    <div class="mesh-bg"></div>
+    
+    <a href="Home.html" class="absolute top-8 left-8 text-slate-400 hover:text-white flex items-center gap-2 font-bold transition">
+        ⬅️ กลับหน้าหลัก
+    </a>
+
+    <main class="w-full max-w-md p-4 relative z-10">
+        <div class="glass-card rounded-3xl p-8 md:p-10 text-center relative overflow-hidden">
+            <div class="w-16 h-16 bg-gradient-to-br from-cyan-400 to-blue-600 rounded-2xl flex items-center justify-center font-bold text-3xl mx-auto mb-4 shadow-lg">IT</div>
+            <h1 class="text-2xl font-black tracking-wider mb-8">GAMEDEV <span class="text-cyan-400">QUEST</span></h1>
+            
+            <form onsubmit="handleLogin(event)" class="space-y-6">
+                <div class="text-left">
+                    <label class="block text-xs font-bold text-slate-400 uppercase tracking-wider mb-2 ml-1">รหัสนักศึกษา (Student ID)</label>
+                    <input type="text" id="username" required placeholder="กรอกรหัสนักศึกษา..." class="input-field w-full rounded-xl py-3 px-4 font-mono text-sm placeholder-slate-600">
+                </div>
+
+                <div id="error-msg" class="hidden text-rose-400 text-xs font-bold py-2 rounded-lg border border-rose-500/30 bg-rose-900/20">
+                    ❌ ไม่พบรหัสนักศึกษานี้ในระบบ
+                </div>
+
+                <button type="submit" id="submit-btn" class="w-full bg-cyan-600 hover:bg-cyan-500 text-white font-bold py-3.5 rounded-xl transition-all shadow-lg transform hover:-translate-y-1">
+                    ACCESS MISSION 🚀
+                </button>
+            </form>
+        </div>
+    </main>
+
+    <script>
+        const GOOGLE_SHEET_CSV_URL = 'https://script.google.com/macros/s/AKfycbyoDP7VBLzRps63XnxM19KNUMM4LOduLKe2n1wNmGeXffkWFGYifJLCOiO0eAvvw_Foew/exec';
+
+        async function handleLogin(e) {
+            e.preventDefault();
+            const inputId = document.getElementById('username').value.trim();
+            const errorMsg = document.getElementById('error-msg');
+            const btn = document.getElementById('submit-btn');
+
+            if (!inputId) return;
+            btn.innerHTML = 'กำลังตรวจสอบข้อมูล... ⏳';
+            btn.classList.add('bg-amber-600', 'pointer-events-none');
+            errorMsg.classList.add('hidden');
+
+            try {
+                const response = await fetch(GOOGLE_SHEET_CSV_URL);
+                if (!response.ok) throw new Error("Net Error");
+                const data = await response.text();
+                
+                const rows = data.split(/\r?\n/);
+                let isFound = false, studentName = "";
+                
+                // ล้างอักขระพิเศษออกจากรหัสที่พิมพ์มา
+                const cleanInputId = inputId.replace(/[^0-9a-zA-Z]/g, '');
+
+                for(let i = 1; i < rows.length; i++) {
+                    const columns = rows[i].split(',');
+                    if(columns.length >= 2) {
+                        // ล้างอักขระพิเศษออกจากรหัสใน Sheet
+                        const sheetId = columns[0].replace(/[^0-9a-zA-Z]/g, '');
+                        
+                        if(sheetId === cleanInputId) {
+                            isFound = true;
+                            // ลบเครื่องหมายคำพูด (Quotes) ออกจากชื่อ
+                            studentName = columns[1].replace(/^"|"$/g, '').trim();
+                            break;
+                        }
+                    }
+                }
+
+                if (isFound) {
+                    localStorage.setItem('studentId', cleanInputId);
+                    localStorage.setItem('studentName', studentName);
+                    
+                    btn.innerHTML = `ยินดีต้อนรับ ${studentName} 🚀`;
+                    btn.classList.replace('bg-amber-600', 'bg-emerald-600');
+                    setTimeout(() => window.location.href = 'Game.html', 1200);
+                } else {
+                    throw new Error("Not found");
+                }
+            } catch (error) {
+                btn.innerHTML = 'ACCESS MISSION 🚀';
+                btn.classList.remove('bg-amber-600', 'pointer-events-none');
+                errorMsg.innerText = error.message === "Not found" ? "❌ ไม่พบรหัสนักศึกษานี้ในระบบ" : "⚠️ ไม่สามารถเชื่อมต่อฐานข้อมูลได้";
+                errorMsg.classList.remove('hidden');
+            }
+        }
+    </script>
+</body>
+</html>

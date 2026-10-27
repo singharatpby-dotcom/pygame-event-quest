@@ -1,0 +1,692 @@
+<!DOCTYPE html>
+<html lang="th" class="scroll-smooth dark">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Game Development Fundamentals - Full Course</title>
+    
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Prompt:wght@300;400;600;700&family=Fira+Code:wght@400;600&display=swap" rel="stylesheet">
+
+    <script>
+        tailwind.config = {
+            darkMode: 'class',
+            theme: {
+                extend: {
+                    fontFamily: { sans: ['Prompt', 'sans-serif'], mono: ['Fira Code', 'monospace'] },
+                    colors: {
+                        brand: { 400: '#38bdf8', 500: '#0ea5e9', 600: '#0284c7', 900: '#0c4a6e' },
+                        accent: { DEFAULT: '#f43f5e', light: '#fff1f2' }
+                    }
+                }
+            }
+        }
+    </script>
+
+    <style>
+        body { transition: background-color 0.5s ease, color 0.5s ease; }
+        .mesh-bg {
+            position: fixed; top: 0; left: 0; width: 100%; height: 100%; z-index: -1;
+            transition: opacity 0.8s ease;
+        }
+        .dark .mesh-bg {
+            background: radial-gradient(circle at 0% 0%, #0c4a6e 0%, transparent 40%),
+                        radial-gradient(circle at 100% 100%, #881337 0%, transparent 40%),
+                        radial-gradient(circle at 50% 50%, #020617 0%, #020617 100%);
+        }
+        html:not(.dark) .mesh-bg {
+            background: radial-gradient(circle at 0% 0%, #e0f2fe 0%, transparent 40%),
+                        radial-gradient(circle at 100% 100%, #ffe4e6 0%, transparent 40%),
+                        radial-gradient(circle at 50% 50%, #f8fafc 0%, #f8fafc 100%);
+        }
+        .glass-card {
+            backdrop-filter: blur(12px);
+            border: 1px solid rgba(255, 255, 255, 0.1);
+            transition: all 0.3s ease;
+        }
+        .dark .glass-card { background: rgba(30, 41, 59, 0.5); }
+        html:not(.dark) .glass-card {
+            background: rgba(255, 255, 255, 0.7);
+            border: 1px solid rgba(15, 23, 42, 0.1);
+            box-shadow: 0 4px 30px rgba(0, 0, 0, 0.05);
+        }
+        .active-module {
+            background: linear-gradient(90deg, rgba(14, 165, 233, 0.15) 0%, transparent 100%);
+            border-left: 4px solid #38bdf8;
+        }
+        @keyframes pulse-glow {
+            0%, 100% { box-shadow: 0 0 15px rgba(14, 165, 233, 0.3); }
+            50% { box-shadow: 0 0 30px rgba(14, 165, 233, 0.6); }
+        }
+        .glow-active { animation: pulse-glow 2s infinite; }
+        .btn-correct { background-color: #10b981 !important; color: white !important; border-color: #10b981 !important; transform: scale(1.02); }
+        .btn-wrong { background-color: #f43f5e !important; color: white !important; border-color: #f43f5e !important; transform: scale(0.98); }
+        
+        /* Custom scrollbar */
+        .content-scroll::-webkit-scrollbar { width: 6px; }
+        .content-scroll::-webkit-scrollbar-track { background: transparent; }
+        .content-scroll::-webkit-scrollbar-thumb { background: #cbd5e1; border-radius: 4px; }
+        .dark .content-scroll::-webkit-scrollbar-thumb { background: #475569; }
+
+        /* Leaderboard Styles */
+        .rank-1 { background: linear-gradient(90deg, rgba(251, 191, 36, 0.15) 0%, transparent 100%); border-left: 4px solid #fbbf24; }
+        .rank-2 { background: linear-gradient(90deg, rgba(148, 163, 184, 0.15) 0%, transparent 100%); border-left: 4px solid #cbd5e1; }
+        .rank-3 { background: linear-gradient(90deg, rgba(180, 83, 9, 0.15) 0%, transparent 100%); border-left: 4px solid #d97706; }
+    </style>
+</head>
+<body class="antialiased bg-slate-50 dark:bg-[#020617] text-slate-900 dark:text-slate-100 font-sans transition-colors duration-500">
+    <div class="mesh-bg"></div>
+
+    <nav class="sticky top-0 z-50 px-4 py-3">
+        <div class="max-w-7xl mx-auto glass-card px-6 py-3 flex justify-between items-center rounded-2xl shadow-sm">
+            <div class="flex items-center gap-3">
+                <div class="w-10 h-10 bg-gradient-to-br from-brand-400 to-brand-600 rounded-xl flex items-center justify-center font-bold text-white shadow-lg shadow-brand-500/30">IT</div>
+                <span class="text-xl font-bold tracking-tight">GameDev Master</span>
+            </div>
+            <div class="flex items-center gap-4">
+                <a href="Game.html" class="hidden md:flex items-center gap-2 bg-slate-200 dark:bg-white/10 hover:bg-brand-500 hover:text-white dark:hover:bg-brand-500 px-5 py-2 rounded-xl font-bold text-sm transition-all duration-300 shadow-sm hover:shadow-brand-500/30 hover:-translate-y-0.5">
+                    🎮 โหมดทำภารกิจ
+                </a>
+
+                <button id="theme-toggle-btn" onclick="toggleTheme()" disabled 
+                    class="opacity-40 cursor-not-allowed p-2.5 rounded-xl bg-slate-200 dark:bg-white/5 transition-all duration-300 flex items-center gap-2 border border-transparent shadow-sm">
+                    <span id="theme-lock-status">🔒</span>
+                    <span id="theme-icon" class="text-xl">🌙</span>
+                </button>
+            </div>
+        </div>
+    </nav>
+
+    <header class="pt-20 pb-12 px-4">
+        <div class="max-w-5xl mx-auto text-center">
+            <h1 class="text-5xl md:text-6xl font-black mb-6 text-slate-900 dark:text-white tracking-tight leading-tight">
+                Course: <span class="text-transparent bg-clip-text bg-gradient-to-r from-brand-400 to-emerald-400">Game Fundamentals</span> 
+            </h1>
+            <p class="text-lg text-slate-600 dark:text-slate-400 max-w-2xl mx-auto leading-relaxed mb-10">
+                เรียนรู้วิวัฒนาการ องค์ประกอบ และกระบวนการพัฒนาเกมฉบับเต็ม พร้อมตะลุยด่านภารกิจเพื่ออัปสกิลของคุณ!
+            </p>
+            
+            <a href="Login.html" class="inline-block bg-gradient-to-r from-brand-500 to-emerald-500 text-white px-10 py-4 rounded-full font-black text-lg transition-all duration-300 shadow-[0_0_25px_rgba(16,185,129,0.4)] hover:shadow-[0_0_35px_rgba(16,185,129,0.6)] transform hover:-translate-y-1">
+                🚀 เข้าสู่หน้าเกมและภารกิจ 
+            </a>
+        </div>
+    </header>
+
+    <section id="modules-section" class="py-12 px-4">
+        <div class="max-w-7xl mx-auto">
+            <div class="grid grid-cols-1 lg:grid-cols-12 gap-6 min-h-[700px] mb-16">
+                <div class="lg:col-span-4 glass-card rounded-3xl overflow-hidden flex flex-col h-[700px] shadow-lg border border-slate-200/50 dark:border-white/10">
+                    <div class="p-6 border-b border-slate-200 dark:border-white/5 bg-slate-100/50 dark:bg-white/5 text-xs font-bold uppercase tracking-widest text-brand-500 flex items-center gap-2">
+                        <span>📚</span> Lessons Catalog
+                    </div>
+                    <div class="flex-1 overflow-y-auto content-scroll" id="module-nav-container"></div>
+                </div>
+                
+                <div class="lg:col-span-8 glass-card rounded-3xl p-8 md:p-10 relative flex flex-col shadow-2xl h-[700px] border border-slate-200/50 dark:border-white/10">
+                    <div id="module-content-area" class="h-full overflow-y-auto pr-4 content-scroll"></div>
+                </div>
+            </div>
+        </div>
+    </section>
+
+    <section id="game-section" class="py-20 px-4 relative bg-slate-200/50 dark:bg-black/40 rounded-[2.5rem] mx-4 lg:mx-auto max-w-7xl mb-20 border border-slate-300/50 dark:border-white/10 shadow-inner">
+        <div class="max-w-4xl mx-auto text-center mb-16">
+            <h2 class="text-4xl font-black mb-6 dark:text-white flex items-center justify-center gap-3">
+                <span>🎯</span> Knowledge Quest
+            </h2>
+            <div class="flex justify-center gap-6 items-center max-w-md mx-auto bg-white/50 dark:bg-slate-800/50 p-4 rounded-2xl backdrop-blur-sm border border-slate-200 dark:border-slate-700">
+                <div class="text-center min-w-[80px]">
+                    <div class="text-4xl font-black text-brand-500 transition-all duration-300" id="xp-display">0</div>
+                    <div class="text-[10px] uppercase font-bold text-slate-500 dark:text-slate-400 tracking-widest mt-1">Score</div>
+                </div>
+                <div class="flex-1">
+                    <div class="w-full bg-slate-200 dark:bg-slate-900 h-5 rounded-full overflow-hidden p-1 border border-slate-300 dark:border-slate-700">
+                        <div id="xp-bar" class="bg-gradient-to-r from-brand-400 to-emerald-400 h-full rounded-full transition-all duration-1000 ease-out shadow-lg relative overflow-hidden" style="width: 0%">
+                            <div class="absolute top-0 left-0 w-full h-full bg-gradient-to-r from-transparent via-white/30 to-transparent -translate-x-full animate-[shimmer_2s_infinite]"></div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <div class="max-w-3xl mx-auto glass-card rounded-3xl p-8 md:p-12 shadow-2xl relative border border-slate-200/50 dark:border-white/10">
+            <div id="quiz-container" class="transition-all duration-500">
+                <div class="mb-6 flex items-center justify-between">
+                    <span class="px-4 py-1.5 rounded-full bg-brand-500/10 text-brand-600 dark:text-brand-400 text-xs font-bold uppercase border border-brand-500/20">
+                        Question <span id="current-q" class="text-brand-500">1</span>/5
+                    </span>
+                </div>
+                <h3 id="question-text" class="text-2xl font-bold mb-10 dark:text-white tracking-tight leading-relaxed">Loading Quiz...</h3>
+                <div id="options-container" class="grid grid-cols-1 md:grid-cols-2 gap-4"></div>
+            </div>
+            
+            <div id="result-overlay" class="hidden absolute inset-0 flex flex-col items-center justify-center p-10 text-center z-20 bg-white/95 dark:bg-[#0f172a]/95 backdrop-blur-md rounded-3xl transition-all duration-500">
+                <div id="result-emoji" class="text-7xl mb-6 animate-bounce">🏆</div>
+                <h3 id="result-title" class="text-4xl font-black mb-4 dark:text-white text-transparent bg-clip-text bg-gradient-to-r from-brand-400 to-emerald-400">Mission Complete!</h3>
+                <p id="reward-message" class="text-lg text-slate-600 dark:text-slate-300 mb-8 font-medium"></p>
+                <button onclick="resetGame()" class="bg-brand-500 hover:bg-brand-400 text-white px-10 py-4 rounded-2xl font-bold transition-all hover:scale-105 shadow-lg shadow-brand-500/30">
+                    🔄 ลองเล่นอีกครั้ง (Try Again)
+                </button>
+            </div>
+        </div>
+    </section>
+
+    <section class="max-w-4xl mx-auto glass-card rounded-[2.5rem] p-8 md:p-12 shadow-2xl relative overflow-hidden mb-24 mx-4 lg:mx-auto border border-slate-200/50 dark:border-white/10">
+        <div class="absolute -top-32 -right-32 w-96 h-96 bg-amber-500 rounded-full mix-blend-screen filter blur-[100px] opacity-20 pointer-events-none"></div>
+        
+        <div class="text-center mb-10 relative z-10">
+            <h2 class="text-4xl md:text-5xl font-black text-transparent bg-clip-text bg-gradient-to-r from-amber-400 via-orange-500 to-rose-500 drop-shadow-sm mb-3">
+                🏆 HALL OF FAME
+            </h2>
+            <p class="text-slate-500 dark:text-slate-400 font-mono text-sm bg-slate-200/50 dark:bg-slate-800/50 inline-block px-4 py-1.5 rounded-full">
+                ตารางจัดอันดับนักพัฒนาเกม (อัปเดต Real-time)
+            </p>
+        </div>
+        
+        <div class="overflow-x-auto bg-white/70 dark:bg-[#0f172a]/80 rounded-2xl border border-slate-200 dark:border-slate-700/80 shadow-inner relative z-10">
+            <table class="w-full text-left border-collapse">
+                <thead>
+                    <tr class="bg-slate-200/80 dark:bg-slate-800/90 text-brand-600 dark:text-cyan-400 text-xs uppercase tracking-widest border-b border-slate-300 dark:border-slate-700">
+                        <th class="p-5 font-bold text-center w-20">Rank</th>
+                        <th class="p-5 font-bold">Agent Name</th>
+                        <th class="p-5 font-bold text-center">Level</th>
+                        <th class="p-5 font-bold text-right">Total XP</th>
+                    </tr>
+                </thead>
+                <tbody id="leaderboard-body" class="text-sm font-medium">
+                    </tbody>
+            </table>
+        </div>
+
+        <div id="leaderboard-loading" class="text-center py-16 text-brand-500 dark:text-cyan-400 font-mono animate-pulse flex flex-col items-center justify-center gap-4">
+            <span class="text-5xl animate-spin">⚙️</span>
+            <span class="text-sm tracking-widest uppercase">Fetching data from server...</span>
+        </div>
+    </section>
+
+    <footer class="py-12 text-center text-slate-500 text-[10px] tracking-widest uppercase border-t border-slate-200 dark:border-white/5 bg-slate-100/50 dark:bg-black/20">
+        <p>วิทยาลัยเทคนิคพระนครศรีอยุธยา แผนกเทคโนโลยีสารสนเทศ</p>
+    </footer>
+
+    <!-- AI Chat Assistant -->
+    <div id="ai-chat-widget" class="fixed bottom-6 right-6 z-50 flex flex-col items-end">
+        <!-- Chat Window -->
+        <div id="ai-chat-window" class="hidden w-80 sm:w-96 glass-card rounded-2xl mb-4 flex-col shadow-2xl transition-all duration-300 transform origin-bottom-right border border-slate-200/50 dark:border-white/10" style="height: 450px;">
+            <!-- Header -->
+            <div class="bg-gradient-to-r from-brand-500 to-emerald-500 p-4 flex justify-between items-center text-white rounded-t-2xl">
+                <div class="flex items-center gap-2">
+                    <span class="text-xl">🤖</span>
+                    <span class="font-bold text-sm">AI Assistant</span>
+                </div>
+                <button onclick="toggleChat()" class="hover:bg-white/20 p-1 rounded-lg transition-colors">
+                    <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12" />
+                    </svg>
+                </button>
+            </div>
+            
+            <!-- Messages Area -->
+            <div id="chat-messages" class="flex-1 overflow-y-auto p-4 space-y-4 content-scroll bg-slate-50/50 dark:bg-[#0f172a]/50">
+                <!-- Welcome Message -->
+                <div class="flex justify-start">
+                    <div class="bg-white dark:bg-slate-800 text-slate-800 dark:text-slate-200 p-3 rounded-2xl rounded-tl-sm text-sm border border-slate-200 dark:border-slate-700 shadow-sm max-w-[85%]">
+                        สวัสดีครับ! มีอะไรให้ผมช่วยเกี่ยวกับการพัฒนาเกมไหมครับ?
+                    </div>
+                </div>
+            </div>
+
+            <!-- Input Area -->
+            <div class="p-3 bg-white dark:bg-slate-800 border-t border-slate-200 dark:border-slate-700 rounded-b-2xl">
+                <form id="chat-form" onsubmit="handleChatSubmit(event)" class="flex gap-2">
+                    <input type="text" id="chat-input" class="flex-1 bg-slate-100 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 text-slate-800 dark:text-white text-sm rounded-xl px-3 py-2 focus:outline-none focus:border-brand-500 focus:ring-1 focus:ring-brand-500 transition-colors" placeholder="พิมพ์ข้อความ..." required autocomplete="off">
+                    <button type="submit" id="chat-submit-btn" class="bg-brand-500 hover:bg-brand-600 text-white rounded-xl p-2 transition-colors flex items-center justify-center shadow-sm">
+                        <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5 transform rotate-90" viewBox="0 0 20 20" fill="currentColor">
+                            <path d="M10.894 2.553a1 1 0 00-1.788 0l-7 14a1 1 0 001.169 1.409l5-1.429A1 1 0 009 15.571V11a1 1 0 112 0v4.571a1 1 0 00.725.962l5 1.428a1 1 0 001.17-1.408l-7-14z" />
+                        </svg>
+                    </button>
+                </form>
+            </div>
+        </div>
+
+        <!-- Chat Toggle Button -->
+        <button id="chat-toggle-btn" onclick="toggleChat()" class="w-14 h-14 bg-gradient-to-r from-brand-500 to-emerald-500 rounded-full flex items-center justify-center text-white text-2xl shadow-lg hover:shadow-xl hover:scale-110 transition-all duration-300 border-2 border-white/20 z-50">
+            💬
+        </button>
+    </div>
+
+    <style>
+        @keyframes shimmer {
+            100% { transform: translateX(100%); }
+        }
+    </style>
+
+    <script>
+        // ข้อมูลเนื้อหา (ยังคงเหมือนเดิม)
+        const modulesData = [
+            { 
+                id: 1, 
+                title: "Lesson 1: ความรู้พื้นฐานเกี่ยวกับเหตุการณ์", 
+                subtitle: "Concept of Event & Game Loop", 
+                fullHtml: `
+                    <h3 class="text-xl font-bold text-brand-500 mb-4 mt-2">เหตุการณ์ (Event) คืออะไร?</h3>
+                    <p class="mb-4 text-slate-700 dark:text-slate-300">ในบริบทของการพัฒนาเกม "เหตุการณ์" หรือ Event คือสิ่งที่เกิดขึ้นระหว่างที่เกมกำลังทำงาน ซึ่งอาจเกิดจากการกระทำของผู้เล่น (เช่น การกดปุ่มบนคีย์บอร์ด, การคลิกเมาส์) หรือเกิดจากระบบ (เช่น การปิดหน้าต่างเกม)</p>
+                    <ul class="space-y-4 text-slate-700 dark:text-slate-300 leading-relaxed mb-8">
+                        <li><strong class="text-slate-900 dark:text-white">Game Loop:</strong> หัวใจหลักของเกมทุกเกมคือ Game Loop ซึ่งจะทำงานวนซ้ำอย่างต่อเนื่องเพื่ออัปเดตสถานะของเกม หนึ่งในหน้าที่สำคัญของ Game Loop คือการตรวจสอบและจัดการกับ Event ที่เกิดขึ้น</li>
+                        <li><strong class="text-slate-900 dark:text-white">pygame.event:</strong> ใน Pygame เราใช้โมดูล <code>pygame.event</code> เพื่อเข้าถึงและจัดการกับเหตุการณ์ต่างๆ โดยฟังก์ชันพื้นฐานที่ใช้บ่อยคือ <code>pygame.event.get()</code> ซึ่งจะดึงรายการเหตุการณ์ทั้งหมดที่เกิดขึ้นในเฟรมนั้นออกมา</li>
+                    </ul>
+                `,
+                code: '\"\"\"\nLesson 1 Challenge:\n\nอธิบายการทำงานของ Game Loop \nและการตรวจสอบ Event เบื้องต้น\n\"\"\"' 
+            },
+            { 
+                id: 2, 
+                title: "Lesson 2: โครงสร้างและการจัดการคิวเหตุการณ์", 
+                subtitle: "Event Queue & FIFO", 
+                fullHtml: `
+                    <h3 class="text-xl font-bold text-brand-500 mb-4 mt-2">คิวเหตุการณ์ (Event Queue)</h3>
+                    <p class="mb-6 text-slate-700 dark:text-slate-300">Pygame เก็บเหตุการณ์ทั้งหมดไว้ในโครงสร้างข้อมูลแบบคิว (Queue) ซึ่งทำงานแบบ FIFO (First-In, First-Out) หมายความว่าเหตุการณ์ที่เกิดขึ้นก่อนจะถูกนำมาประมวลผลก่อน</p>
+                    <div class="space-y-8 text-slate-700 dark:text-slate-300 leading-relaxed">
+                        <div class="bg-slate-100 dark:bg-white/5 p-6 rounded-2xl border-l-4 border-pink-500 transition-transform hover:-translate-y-1 hover:shadow-md">
+                            <h4 class="font-bold text-slate-900 dark:text-white text-xl mb-2">การดึงเหตุการณ์ (Fetching Events)</h4>
+                            <p>ใช้ <code>pygame.event.get()</code> เพื่อดึงเหตุการณ์ทั้งหมดออกจากคิว การทำเช่นนี้เป็นการล้างคิว (Clear queue) ไปในตัว เพื่อเตรียมพร้อมรับเหตุการณ์ในเฟรมถัดไป</p>
+                        </div>
+                        <div class="bg-slate-100 dark:bg-white/5 p-6 rounded-2xl border-l-4 border-blue-500 transition-transform hover:-translate-y-1 hover:shadow-md">
+                            <h4 class="font-bold text-slate-900 dark:text-white text-xl mb-2">โครงสร้างของ Event Object</h4>
+                            <p>แต่ละเหตุการณ์จะมีแอตทริบิวต์ <code>type</code> เพื่อระบุชนิดของเหตุการณ์ เช่น <code>QUIT</code>, <code>KEYDOWN</code>, <code>MOUSEMOTION</code> เป็นต้น</p>
+                        </div>
+                    </div>
+                `,
+                code: '\"\"\"\nLesson 2 Challenge:\n\nเขียนโค้ดเพื่อดึงเหตุการณ์ทั้งหมด\nและพิมพ์ type ของแต่ละเหตุการณ์\n\"\"\"' 
+            },
+            { 
+                id: 3, 
+                title: "Lesson 3: การตรวจจับเหตุการณ์จากคีย์บอร์ด", 
+                subtitle: "Keyboard Events", 
+                fullHtml: `
+                    <h3 class="text-xl font-bold text-brand-500 mb-4 mt-2">การรับข้อมูลจากคีย์บอร์ด</h3>
+                    <p class="mb-4 text-slate-700 dark:text-slate-300">การควบคุมเกมส่วนใหญ่มักใช้คีย์บอร์ด Pygame มีวิธีหลักๆ สองวิธีในการตรวจสอบการกดปุ่ม:</p>
+                    <ul class="space-y-4 text-slate-700 dark:text-slate-300 leading-relaxed mb-8">
+                        <li><strong class="text-slate-900 dark:text-white">เหตุการณ์ KEYDOWN / KEYUP:</strong> ตรวจสอบเมื่อมีการกดปุ่มหรือปล่อยปุ่ม โดยดูจาก <code>event.type == KEYDOWN</code> และ <code>event.key == K_LEFT</code> หรือ <code>K_RIGHT</code> เหมาะสำหรับการรับคำสั่งแบบครั้งเดียว (Discrete actions)</li>
+                        <li><strong class="text-slate-900 dark:text-white">pygame.key.get_pressed():</strong> คืนค่า Tuple ที่บอกสถานะของทุกปุ่มบนคีย์บอร์ด (ถูกกดอยู่หรือไม่) เหมาะสำหรับการตรวจสอบการกดปุ่มค้างไว้ (Continuous actions) เช่น การบังคับให้ตัวละครเดินอย่างต่อเนื่อง</li>
+                    </ul>
+                `,
+                code: '\"\"\"\nLesson 3 Challenge:\n\nใช้ pygame.key.get_pressed() \nเพื่อตรวจสอบการกดปุ่ม K_LEFT \nและ K_RIGHT\n\"\"\"' 
+            },
+            { 
+                id: 4, 
+                title: "Lesson 4: การตรวจจับเหตุการณ์จากเมาส์", 
+                subtitle: "Mouse Events", 
+                fullHtml: `
+                    <h3 class="text-xl font-bold text-brand-500 mb-4 mt-2">การจัดการเมาส์ใน Pygame</h3>
+                    <p class="mb-4 text-slate-700 dark:text-slate-300">การใช้เมาส์มีความสำคัญในเกมหลายแนว เช่น เกมคลิก, UI, หรือเกมยิงปืน เราสามารถตรวจจับเมาส์ได้ดังนี้:</p>
+                    <ul class="space-y-4 text-slate-700 dark:text-slate-300 leading-relaxed">
+                        <li><strong class="text-slate-900 dark:text-white text-emerald-500">pygame.mouse.get_pos():</strong> คืนค่าพิกัด (X, Y) ปัจจุบันของเมาส์บนหน้าจอ</li>
+                        <li><strong class="text-slate-900 dark:text-white text-emerald-500">เหตุการณ์ MOUSEBUTTONDOWN / UP:</strong> ตรวจจับการคลิกเมาส์ โดย <code>event.button</code> จะบอกว่าคลิกด้วยปุ่มซ้าย (1), กลาง (2), หรือขวา (3)</li>
+                        <li><strong class="text-slate-900 dark:text-white text-emerald-500">เหตุการณ์ MOUSEMOTION:</strong> ตรวจจับเมื่อมีการขยับเมาส์ ซึ่งจะให้ข้อมูลพิกัดใหม่และระยะกระจัด (relative movement)</li>
+                    </ul>
+                `,
+                code: '\"\"\"\nLesson 4 Challenge:\n\nเขียนเงื่อนไขเมื่อ MOUSEBUTTONDOWN \nให้พิมพ์พิกัด pygame.mouse.get_pos()\n\"\"\"' 
+            },
+            { 
+                id: 5, 
+                title: "Lesson 5: การตรวจจับการชน", 
+                subtitle: "Collision Detection", 
+                fullHtml: `
+                    <h3 class="text-xl font-bold text-brand-500 mb-4 mt-2">วัตถุชนกันได้อย่างไร?</h3>
+                    <p class="mb-6 text-slate-700 dark:text-slate-300">ใน Pygame คลาส <code>Rect</code> ถูกใช้เพื่อกำหนดกรอบสี่เหลี่ยมรอบวัตถุ ซึ่งมีประโยชน์อย่างมากในการตรวจสอบการชน (Collision Detection)</p>
+                    <div class="space-y-8 text-slate-700 dark:text-slate-300 leading-relaxed">
+                        <div class="bg-slate-100 dark:bg-white/5 p-6 rounded-2xl border-l-4 border-amber-500 transition-transform hover:-translate-y-1 hover:shadow-md">
+                            <h4 class="font-bold text-slate-900 dark:text-white text-xl mb-2">Rect.colliderect()</h4>
+                            <p>ใช้ <code>rect1.colliderect(rect2)</code> เพื่อตรวจสอบว่ากรอบสี่เหลี่ยมของวัตถุที่ 1 ซ้อนทับกับวัตถุที่ 2 หรือไม่ คืนค่า True หากมีการชนกัน</p>
+                        </div>
+                        <div class="bg-slate-100 dark:bg-white/5 p-6 rounded-2xl border-l-4 border-rose-500 transition-transform hover:-translate-y-1 hover:shadow-md">
+                            <h4 class="font-bold text-slate-900 dark:text-white text-xl mb-2">Rect.collidepoint()</h4>
+                            <p>ใช้สำหรับการตรวจสอบว่าพิกัด (เช่น พิกัดของเมาส์) อยู่ภายในกรอบสี่เหลี่ยมหรือไม่ นิยมใช้ตรวจสอบการคลิกปุ่ม UI</p>
+                        </div>
+                    </div>
+                `,
+                code: '\"\"\"\nLesson 5 Challenge:\n\nตรวจสอบการชนระหว่างผู้เล่นและศัตรู\nด้วย player_rect.colliderect(enemy_rect)\n\"\"\"' 
+            },
+            { 
+                id: 6, 
+                title: "Lesson 6: การประยุกต์ใช้ตรรกะเหตุการณ์", 
+                subtitle: "Game State & Debugging", 
+                fullHtml: `
+                    <h3 class="text-xl font-bold text-brand-500 mb-4 mt-2">การจัดการสถานะของเกม (Game State)</h3>
+                    <p class="mb-4 text-slate-700 dark:text-slate-300">การพัฒนาเกมมักมีหลายหน้า (เช่น หน้าเมนู, หน้าเล่นเกม, หน้าจบเกม) เราใช้ตัวแปรสถานะ (State variable) ร่วมกับระบบ Event เพื่อเปลี่ยนหน้า</p>
+                    <ul class="space-y-4 text-slate-700 dark:text-slate-300 leading-relaxed mb-8">
+                        <li><strong class="text-slate-900 dark:text-white">State Machine:</strong> ใช้เงื่อนไข <code>if state == "MENU":</code> เพื่อกำหนดว่าจะประมวลผลการแสดงผลและ Event รูปแบบใด</li>
+                        <li><strong class="text-slate-900 dark:text-white">การ Debug เหตุการณ์:</strong> ขณะพัฒนา อาจมีบั๊กที่เกิดจากการพิมพ์ปุ่มผิด หรือรับ Event ซ้ำซ้อน การใช้คำสั่ง <code>print(event)</code> ช่วยให้เห็นข้อมูลที่ระบบได้รับอย่างชัดเจน</li>
+                    </ul>
+                `,
+                code: '\"\"\"\nLesson 6 Challenge:\n\nสร้างตัวแปร state = "PLAYING" \nและใช้ปุ่ม K_ESCAPE เพื่อเปลี่ยนเป็น \nstate = "PAUSE"\n\"\"\"' 
+            }
+        ];
+
+
+        let currentModuleIndex = 0;
+
+        function renderNav() {
+            const container = document.getElementById('module-nav-container');
+            container.innerHTML = modulesData.map((mod, idx) => `
+                <button onclick="setModule(${idx})" class="w-full text-left p-6 transition-all duration-300 border-b border-slate-200 dark:border-white/5 hover:bg-slate-100 dark:hover:bg-white/10 group ${currentModuleIndex === idx ? 'active-module' : ''}">
+                    <div class="text-[10px] font-bold text-brand-500 uppercase mb-1 flex items-center justify-between">
+                        Lesson ${mod.id}
+                        <span class="opacity-0 group-hover:opacity-100 transition-opacity text-lg">👉</span>
+                    </div>
+                    <div class="font-bold text-slate-800 dark:text-white text-sm leading-tight">${mod.subtitle}</div>
+                </button>
+            `).join('');
+        }
+
+        function setModule(idx) { 
+            currentModuleIndex = idx; 
+            renderNav(); 
+            renderContent(); 
+            document.getElementById('module-content-area').scrollTop = 0;
+        }
+
+        function renderContent() {
+            const mod = modulesData[currentModuleIndex];
+            document.getElementById('module-content-area').innerHTML = `
+                <div class="animate-[slideIn_0.5s_ease-out] flex flex-col min-h-full">
+                    <h2 class="text-3xl md:text-4xl font-black mb-8 dark:text-white tracking-tight">${mod.title}</h2>
+                    <div class="flex-1 mb-10">${mod.fullHtml}</div>
+                    
+                    <div class="bg-[#0f172a] rounded-xl border border-slate-700 overflow-hidden mt-auto shadow-lg">
+                        <div class="bg-slate-800 px-4 py-3 flex justify-between items-center border-b border-slate-700">
+                            <div class="flex gap-2">
+                                <div class="w-3 h-3 rounded-full bg-rose-500 shadow-sm"></div>
+                                <div class="w-3 h-3 rounded-full bg-amber-500 shadow-sm"></div>
+                                <div class="w-3 h-3 rounded-full bg-emerald-500 shadow-sm"></div>
+                            </div>
+                            <span class="text-xs text-slate-400 font-mono">mission.py</span>
+                        </div>
+                        <pre class="p-6 text-sm font-mono text-cyan-400 overflow-x-auto leading-relaxed whitespace-pre-wrap"><code>${mod.code}</code></pre>
+                    </div>
+                </div>
+            `;
+        }
+
+        // CSS Animation for Content
+        const style = document.createElement('style');
+        style.innerHTML = `
+            @keyframes slideIn {
+                from { opacity: 0; transform: translateY(20px); }
+                to { opacity: 1; transform: translateY(0); }
+            }
+        `;
+        document.head.appendChild(style);
+
+        // ------------------ ระบบแบบทดสอบ (Quiz) ------------------
+        const quizQuestions = [
+            { q: "ตามทฤษฎีของ Jesse Schell กฎกติกาและเงื่อนไขแพ้ชนะจัดอยู่ในองค์ประกอบใด?", options: ["Mechanics", "Story", "Aesthetics", "Technology"], correct: 0 },
+            { q: "ยุคสมัยใดที่เริ่มมีการรีดประสิทธิภาพฮาร์ดแวร์เพื่อสร้างแฟรนไชส์ Super Mario?", options: ["ยุคบุกเบิก", "ยุคทองคอนโซล 8/16-bit", "ยุคอินเทอร์เน็ต", "ยุคสมาร์ทโฟน"], correct: 1 },
+            { q: "เอกสาร 'พิมพ์เขียว' ที่ช่วยป้องกันปัญหา Feature Creep เรียกว่าอะไร?", options: ["Python Script", "Sprite Sheet", "GDD", "API Guide"], correct: 2 },
+            { q: "ระยะใดในการพัฒนาที่ใช้เวลาในการเขียนโค้ดและสร้างอาร์ตเวิร์กมากที่สุด?", options: ["Pre-production", "Production", "Testing", "Post-production"], correct: 1 },
+            { q: "เกมที่ออกแบบเพื่อสอดแทรกความรู้และใช้ร่วมกับ PjBL เรียกว่าอะไร?", options: ["Action Game", "Educational/Serious Games", "Sandbox Game", "MMORPG"], correct: 1 }
+        ];
+
+        let currentQuestionIndex = 0, playerXP = 0, themeUnlocked = false;
+
+        function renderQuiz() {
+            if(currentQuestionIndex >= quizQuestions.length) {
+                document.getElementById('result-overlay').classList.remove('hidden');
+                document.getElementById('reward-message').innerText = playerXP === 100 ? "คุณได้คะแนนเต็ม! ปลดล็อคระบบสลับ Theme แล้ว 🔓" : `คุณทำได้ ${playerXP} XP ลองใหม่อีกครั้งให้ครบ 100 XP เพื่อรับรางวัล!`;
+                if(playerXP === 100) unlockTheme();
+                return;
+            }
+            const qData = quizQuestions[currentQuestionIndex];
+            document.getElementById('current-q').innerText = currentQuestionIndex + 1;
+            
+            // Animation reset trick
+            const qText = document.getElementById('question-text');
+            qText.style.animation = 'none';
+            qText.offsetHeight; /* trigger reflow */
+            qText.style.animation = 'slideIn 0.3s ease-out';
+            qText.innerText = qData.q;
+
+            document.getElementById('options-container').innerHTML = qData.options.map((opt, idx) => `
+                <button onclick="handleAnswer(${idx}, ${qData.correct})" class="quiz-btn w-full text-left p-5 rounded-2xl bg-white dark:bg-white/5 border-2 border-slate-200 dark:border-white/10 hover:border-brand-500 hover:shadow-md transition-all duration-200 text-sm font-medium">${opt}</button>
+            `).join('');
+        }
+
+        function handleAnswer(selected, correct) {
+            const btns = document.querySelectorAll('.quiz-btn');
+            btns.forEach((b, i) => {
+                b.disabled = true;
+                if(i === correct) b.classList.add('btn-correct');
+                else if(i === selected) b.classList.add('btn-wrong');
+                else b.style.opacity = '0.5';
+            });
+            if(selected === correct) playerXP += 20;
+            updateXP(playerXP);
+            setTimeout(() => { currentQuestionIndex++; renderQuiz(); }, 1200);
+        }
+
+        function updateXP(val) {
+            const display = document.getElementById('xp-display');
+            display.innerText = val;
+            display.classList.add('scale-125', 'text-emerald-500');
+            setTimeout(() => display.classList.remove('scale-125', 'text-emerald-500'), 300);
+            document.getElementById('xp-bar').style.width = val + '%';
+        }
+
+        function unlockTheme() {
+            themeUnlocked = true;
+            const btn = document.getElementById('theme-toggle-btn');
+            btn.disabled = false;
+            btn.classList.remove('opacity-40', 'cursor-not-allowed');
+            btn.classList.add('glow-active', 'border-brand-500', 'bg-white', 'dark:bg-slate-800');
+            document.getElementById('theme-lock-status').innerText = "🔓";
+        }
+
+        function toggleTheme() {
+            if(!themeUnlocked) return;
+            document.documentElement.classList.toggle('dark');
+            const icon = document.getElementById('theme-icon');
+            icon.innerText = document.documentElement.classList.contains('dark') ? '🌙' : '☀️';
+            icon.style.transform = 'rotate(360deg)';
+            setTimeout(() => icon.style.transform = 'none', 500);
+        }
+
+        function resetGame() {
+            currentQuestionIndex = 0; playerXP = 0; updateXP(0);
+            document.getElementById('result-overlay').classList.add('hidden');
+            renderQuiz();
+        }
+
+        // ------------------ ระบบ Leaderboard ------------------
+        const CSV_URL = 'https://script.google.com/macros/s/AKfycbyoDP7VBLzRps63XnxM19KNUMM4LOduLKe2n1wNmGeXffkWFGYifJLCOiO0eAvvw_Foew/exec';
+
+        async function fetchLeaderboard() {
+            try {
+                const response = await fetch(CSV_URL + '?t=' + new Date().getTime());
+                if (!response.ok) throw new Error("Network response was not ok");
+                
+                const data = await response.text();
+                const rows = data.split(/\r?\n/);
+                let students = [];
+
+                for(let i = 1; i < rows.length; i++) {
+                    const cols = rows[i].split(',');
+                    if(cols.length >= 4 && cols[0] && cols[0].trim() !== '') {
+                        const name = cols[1] ? cols[1].replace(/^"|"$/g, '').trim() : 'Unknown';
+                        const xp = parseInt(cols[2]) || 0;
+                        const level = parseInt(cols[3]) || 1;
+
+                        if(xp > 0) {
+                            students.push({ name, xp, level });
+                        }
+                    }
+                }
+
+                students.sort((a, b) => b.xp - a.xp || b.level - a.level);
+
+                const tbody = document.getElementById('leaderboard-body');
+                document.getElementById('leaderboard-loading').style.display = 'none';
+
+                if(students.length === 0) {
+                    tbody.innerHTML = `<tr><td colspan="4" class="p-8 text-center text-slate-500 font-mono text-sm bg-white/5">ยังไม่มีผู้เล่นที่เคลียร์ภารกิจ... รีบทำคะแนนเป็นคนแรกเลย!</td></tr>`;
+                    return;
+                }
+
+                let html = '';
+                students.forEach((s, index) => {
+                    let rankIcon = `<span class="text-slate-500 font-mono text-lg">${index + 1}</span>`;
+                    let rowClass = 'hover:bg-slate-100 dark:hover:bg-white/5';
+                    let nameClass = 'text-slate-700 dark:text-slate-300';
+                    let xpClass = 'text-emerald-600 dark:text-emerald-400';
+
+                    if(index === 0) { 
+                        rankIcon = '<span class="text-4xl drop-shadow-lg" title="Rank 1">🥇</span>'; 
+                        rowClass = 'rank-1 bg-amber-50 dark:bg-amber-900/10 hover:bg-amber-100 dark:hover:bg-amber-900/20'; 
+                        nameClass = 'text-amber-700 dark:text-amber-400 font-black text-base'; 
+                        xpClass = 'text-amber-600 dark:text-amber-400';
+                    }
+                    else if(index === 1) { 
+                        rankIcon = '<span class="text-4xl drop-shadow-md" title="Rank 2">🥈</span>'; 
+                        rowClass = 'rank-2 bg-slate-50 dark:bg-slate-800/50 hover:bg-slate-100 dark:hover:bg-slate-700/50'; 
+                        nameClass = 'text-slate-800 dark:text-slate-100 font-bold';
+                    }
+                    else if(index === 2) { 
+                        rankIcon = '<span class="text-4xl drop-shadow-md" title="Rank 3">🥉</span>'; 
+                        rowClass = 'rank-3 bg-orange-50/50 dark:bg-orange-900/10 hover:bg-orange-100/50 dark:hover:bg-orange-900/20'; 
+                        nameClass = 'text-orange-700 dark:text-orange-300 font-bold';
+                        xpClass = 'text-orange-600 dark:text-orange-400';
+                    }
+
+                    html += `
+                        <tr class="border-b border-slate-200 dark:border-slate-700/50 transition-colors duration-200 ${rowClass}">
+                            <td class="p-5 text-center align-middle">${rankIcon}</td>
+                            <td class="p-5 align-middle ${nameClass}">${s.name}</td>
+                            <td class="p-5 text-center align-middle">
+                                <span class="bg-indigo-100 text-indigo-700 dark:bg-indigo-500/20 dark:text-indigo-300 border border-indigo-200 dark:border-indigo-500/30 px-3 py-1.5 rounded-lg text-xs font-mono font-bold shadow-sm">Lv.${s.level}</span>
+                            </td>
+                            <td class="p-5 text-right align-middle font-mono font-black text-lg ${xpClass}">${s.xp}</td>
+                        </tr>
+                    `;
+                });
+
+                tbody.innerHTML = html;
+
+            } catch (error) {
+                document.getElementById('leaderboard-loading').innerHTML = '<span class="text-rose-500 text-sm font-bold bg-rose-100 dark:bg-rose-900/30 px-4 py-2 rounded-xl">❌ ไม่สามารถเชื่อมต่อกับฐานข้อมูลได้ในขณะนี้</span>';
+                console.error("Leaderboard Fetch Error:", error);
+            }
+        }
+
+        // Initialize Everything
+        window.onload = () => { 
+            renderNav(); 
+            renderContent(); 
+            renderQuiz(); 
+            fetchLeaderboard();
+        };
+
+        // ------------------ AI Chat Assistant ------------------
+        function toggleChat() {
+            const chatWindow = document.getElementById('ai-chat-window');
+            if (chatWindow.classList.contains('hidden')) {
+                chatWindow.classList.remove('hidden');
+                chatWindow.classList.add('flex');
+                setTimeout(() => document.getElementById('chat-input').focus(), 100);
+            } else {
+                chatWindow.classList.add('hidden');
+                chatWindow.classList.remove('flex');
+            }
+        }
+
+        async function handleChatSubmit(event) {
+            event.preventDefault();
+            const inputField = document.getElementById('chat-input');
+            const message = inputField.value.trim();
+            if (!message) return;
+
+            const messagesArea = document.getElementById('chat-messages');
+            
+            // Add user message
+            messagesArea.innerHTML += `
+                <div class="flex justify-end">
+                    <div class="bg-brand-500 text-white p-3 rounded-2xl rounded-tr-sm text-sm shadow-sm max-w-[85%] break-words whitespace-pre-wrap">
+                        ${escapeHtml(message)}
+                    </div>
+                </div>
+            `;
+            
+            inputField.value = '';
+            inputField.disabled = true;
+            document.getElementById('chat-submit-btn').disabled = true;
+            messagesArea.scrollTop = messagesArea.scrollHeight;
+
+            // Add loading animation
+            const loadingId = 'loading-' + Date.now();
+            messagesArea.innerHTML += `
+                <div id="${loadingId}" class="flex justify-start">
+                    <div class="bg-white dark:bg-slate-800 p-3 rounded-2xl rounded-tl-sm text-sm border border-slate-200 dark:border-slate-700 shadow-sm flex items-center gap-2 h-10 w-16">
+                        <div class="w-1.5 h-1.5 bg-brand-500 rounded-full animate-bounce"></div>
+                        <div class="w-1.5 h-1.5 bg-brand-500 rounded-full animate-bounce" style="animation-delay: 0.1s"></div>
+                        <div class="w-1.5 h-1.5 bg-brand-500 rounded-full animate-bounce" style="animation-delay: 0.2s"></div>
+                    </div>
+                </div>
+            `;
+            messagesArea.scrollTop = messagesArea.scrollHeight;
+
+            try {
+                const chatUrl = window.location.protocol.startsWith('http') ? '/chat' : 'http://127.0.0.1:8000/chat';
+                const response = await fetch(chatUrl, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ 
+                        message: message,
+                        current_lesson: currentModuleIndex + 1 
+                    })
+                });
+
+                if (!response.ok) throw new Error('Network response was not ok');
+                const data = await response.json();
+                
+                // Remove loading
+                const loader = document.getElementById(loadingId);
+                if (loader) loader.remove();
+
+                // Add AI response
+                messagesArea.innerHTML += `
+                    <div class="flex justify-start">
+                        <div class="bg-white dark:bg-slate-800 text-slate-800 dark:text-slate-200 p-3 rounded-2xl rounded-tl-sm text-sm border border-slate-200 dark:border-slate-700 shadow-sm max-w-[85%] break-words whitespace-pre-wrap">
+                            ${escapeHtml(data.reply || "No reply from AI.")}
+                        </div>
+                    </div>
+                `;
+            } catch (error) {
+                // Remove loading
+                const loader = document.getElementById(loadingId);
+                if (loader) loader.remove();
+
+                // Add Error message
+                messagesArea.innerHTML += `
+                    <div class="flex justify-start">
+                        <div class="bg-rose-100 dark:bg-rose-900/30 text-rose-600 dark:text-rose-400 p-3 rounded-2xl rounded-tl-sm text-sm border border-rose-200 dark:border-rose-800/50 shadow-sm max-w-[85%]">
+                            ⚠️ ไม่สามารถเชื่อมต่อกับ AI ได้
+                        </div>
+                    </div>
+                `;
+                console.error('Chat Error:', error);
+            } finally {
+                inputField.disabled = false;
+                document.getElementById('chat-submit-btn').disabled = false;
+                inputField.focus();
+                messagesArea.scrollTop = messagesArea.scrollHeight;
+            }
+        }
+
+        function escapeHtml(unsafe) {
+            return (unsafe || "").toString()
+                 .replace(/&/g, "&amp;")
+                 .replace(/</g, "&lt;")
+                 .replace(/>/g, "&gt;")
+                 .replace(/"/g, "&quot;")
+                 .replace(/'/g, "&#039;");
+        }
+    </script>
+</body>
+</html>
